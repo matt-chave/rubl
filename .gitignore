@@ -1,0 +1,12 @@
+node_modules
+cdk.out
+.cdk.staging
+dist
+*.js
+!data/**/*.json
+*.d.ts
+.env
+.env.*
+.DS_Store
+coverage
+*.log

@@ -1,0 +1,42 @@
+[
+  {
+    "code": "010101",
+    "isHazardous": false,
+    "entryTypeDesc": "Absolute non-hazardous",
+    "chapter": "Wastes resulting from exploration, mining, quarrying, and physical and chemical treatment of minerals",
+    "subChapter": "Wastes from mineral excavation",
+    "description": "Wastes from mineral metalliferous excavation"
+  },
+  {
+    "code": "010102",
+    "isHazardous": false,
+    "entryTypeDesc": "Absolute non-hazardous",
+    "chapter": "Wastes resulting from exploration, mining, quarrying, and physical and chemical treatment of minerals",
+    "subChapter": "Wastes from mineral excavation",
+    "description": "Wastes from mineral non-metalliferous excavation"
+  },
+  {
+    "code": "170503",
+    "isHazardous": true,
+    "entryTypeDesc": "Absolute hazardous",
+    "chapter": "Construction and demolition wastes",
+    "subChapter": "Soil (including excavated soil from contaminated sites), stones and dredging spoil",
+    "description": "Soil and stones containing hazardous substances"
+  },
+  {
+    "code": "200108",
+    "isHazardous": false,
+    "entryTypeDesc": "Absolute non-hazardous",
+    "chapter": "Municipal wastes",
+    "subChapter": "Separately collected fractions",
+    "description": "Biodegradable kitchen and canteen waste"
+  },
+  {
+    "code": "150109",
+    "isHazardous": false,
+    "entryTypeDesc": "Absolute non-hazardous",
+    "chapter": "Waste packaging, absorbents, wiping cloths, filter materials and protective clothing",
+    "subChapter": "Packaging",
+    "description": "Textile packaging"
+  }
+]

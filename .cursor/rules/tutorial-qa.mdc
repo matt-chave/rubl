@@ -1,0 +1,21 @@
+---
+description: Capture tutorial clarifying questions into the learn/ Q&A library
+alwaysApply: true
+---
+
+# Tutorial Q&A library
+
+This repo is a hands-on tutorial for software design, event-driven architecture, AWS, and Cursor. The learner works **one step at a time** under `learn/steps/` and must pass that step's automated check before the next.
+
+## When the user asks a clarifying question
+
+1. Answer it in the chat.
+2. Append a dated entry to [`learn/qa/index.md`](learn/qa/index.md) using the template already in that file: question, short answer, related step, links to code.
+3. Do not invent questions. Only record ones the user actually asked (or restated).
+
+## When implementing or explaining a step
+
+- Point at `learn/steps/NN-*/README.md` first, then the code.
+- Do not skip ahead to deploy later stacks if earlier steps are not marked complete in `learn/progress.json`.
+- Never ask the user to paste AWS access keys into chat.
+- When a step names an AWS console page or service, include a Console and/or docs link (see `aws-console-links.mdc`).

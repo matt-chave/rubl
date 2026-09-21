@@ -1,0 +1,8 @@
+[
+  { "code": "BAG", "description": "Bag / Sack (e.g. rubble bag, refuse sack)" },
+  { "code": "BAL", "description": "Bale" },
+  { "code": "BOX", "description": "Box / Carton / Crate" },
+  { "code": "DRU", "description": "Drum" },
+  { "code": "SKI", "description": "Skip" },
+  { "code": "WBI", "description": "Wheelie Bin (any size)" }
+]

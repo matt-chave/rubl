@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "producer-commercial.schema.json",
+  "title": "Producer (Commercial)",
+  "description": "Producer fields specific to commercial waste. organisationName, sicCode and address are required. At least one of emailAddress or phoneNumber must be provided. Exactly one of authorisationNumber or reasonForNoAuthorisationNumber must be provided.",
+  "type": "object",
+  "allOf": [
+    { "$ref": "producer-base.schema.json" },
+    {
+      "type": "object",
+      "anyOf": [
+        { "properties": { "emailAddress": {} }, "required": ["emailAddress"] },
+        { "properties": { "phoneNumber": {} }, "required": ["phoneNumber"] }
+      ],
+      "oneOf": [
+        {
+          "required": ["authorisationNumber"],
+          "properties": {
+            "authorisationNumber": {},
+            "reasonForNoAuthorisationNumber": false
+          }
+        },
+        {
+          "required": ["reasonForNoAuthorisationNumber"],
+          "properties": {
+            "authorisationNumber": false,
+            "reasonForNoAuthorisationNumber": {}
+          }
+        }
+      ],
+      "properties": {
+        "wasteSource": {
+          "const": "Commercial",
+          "description": "Waste originates from a commercial source."
+        },
+        "organisationName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Producer organisation name."
+        },
+        "authorisationNumber": {
+          "type": "string",
+          "format": "authorisationNumber",
+          "description": "Producer environmental permit or exemption number, in a valid UK format. Mutually exclusive with reasonForNoAuthorisationNumber — exactly one of the two is required."
+        },
+        "reasonForNoAuthorisationNumber": {
+          "type": "string",
+          "description": "Reason no authorisationNumber is held. Free text for now — enum values TBC pending BA/policy input. Mutually exclusive with authorisationNumber — exactly one of the two is required."
+        },
+        "sicCode": {
+          "type": "string",
+          "pattern": "^\\d{5}$",
+          "description": "Five-digit Standard Industrial Classification code."
+        },
+        "emailAddress": {
+          "type": "string",
+          "format": "email",
+          "description": "Producer contact email address. At least one of emailAddress or phoneNumber must be provided."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "format": "phoneNumber",
+          "description": "Producer contact phone number, in a valid format. At least one of emailAddress or phoneNumber must be provided."
+        },
+        "address": {
+          "type": "object",
+          "description": "Producer site address.",
+          "properties": {
+            "fullAddress": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Full address line."
+            },
+            "postcode": {
+              "type": "string",
+              "format": "postcode",
+              "description": "Accepts UK postcodes and Irish Eircodes."
+            }
+          },
+          "required": ["postcode"]
+        }
+      },
+      "required": ["wasteSource", "organisationName", "sicCode", "address"]
+    }
+  ],
+  "propertyNames": {
+    "enum": [
+      "wasteSource",
+      "organisationName",
+      "authorisationNumber",
+      "reasonForNoAuthorisationNumber",
+      "sicCode",
+      "emailAddress",
+      "phoneNumber",
+      "address",
+      "councilMovement"
+    ]
+  }
+}

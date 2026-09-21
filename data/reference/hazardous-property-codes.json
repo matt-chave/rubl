@@ -1,0 +1,27 @@
+[
+  {
+    "code": "HP_1",
+    "shortDesc": "Explosive",
+    "longDesc": "Waste that can cause dangerous chemical reactions, producing gas that can damage surroundings (e.g., pyrotechnic or self-reactive waste)."
+  },
+  {
+    "code": "HP_2",
+    "shortDesc": "Oxidizing",
+    "longDesc": "Waste that can provide oxygen, causing or contributing to the combustion of other materials."
+  },
+  {
+    "code": "HP_3",
+    "shortDesc": "Flammable",
+    "longDesc": "Waste that can readily catch fire, including flammable liquid waste, flammable solid waste and flammable gaseous waste."
+  },
+  {
+    "code": "HP_5",
+    "shortDesc": "Specific Target Organ Toxicity / Aspiration Toxicity",
+    "longDesc": "Waste which can cause specific target organ toxicity from either single or repeated exposure, or which cause acute toxic effects following aspiration."
+  },
+  {
+    "code": "HP_10",
+    "shortDesc": "Toxic for reproduction",
+    "longDesc": "Waste which has adverse effects on sexual function and fertility in adult males and females, as well as developmental toxicity in the offspring."
+  }
+]

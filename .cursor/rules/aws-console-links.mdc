@@ -1,0 +1,13 @@
+---
+description: Link AWS Console pages and service docs when the tutorial names them
+alwaysApply: true
+---
+
+# AWS Console and docs links
+
+When you name an AWS console page, wizard, or service in `learn/` or in chat, add a URL.
+
+- Prefer the **Console** deep link the learner can click while signed in (use `eu-west-2` for regional services in this project).
+- Add the **docs** page when the learner needs a why or a field-by-field guide.
+- Billing, IAM, and Organizations are often **global** consoles (`console.aws.amazon.com` without a region prefix).
+- Never ask the learner to paste access keys, account numbers, or `sts get-caller-identity` output into chat.

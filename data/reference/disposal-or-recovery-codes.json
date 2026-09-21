@@ -1,0 +1,27 @@
+[
+  {
+    "code": "R1",
+    "isNotRecoveryToFinalProduct": true,
+    "description": "Use principally as a fuel or other means to generate energy"
+  },
+  {
+    "code": "R2",
+    "isNotRecoveryToFinalProduct": false,
+    "description": "Solvent reclamation/regeneration"
+  },
+  {
+    "code": "R3",
+    "isNotRecoveryToFinalProduct": false,
+    "description": "Recycling/reclamation of organic substances which are not used as solvents"
+  },
+  {
+    "code": "D1",
+    "isNotRecoveryToFinalProduct": true,
+    "description": "Deposit into or on to land (e.g. landfill)"
+  },
+  {
+    "code": "D10",
+    "isNotRecoveryToFinalProduct": true,
+    "description": "Incineration on land"
+  }
+]

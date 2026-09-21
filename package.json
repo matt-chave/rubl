@@ -1,0 +1,33 @@
+{
+  "name": "report-waste-movements",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Digital Waste Tracking Service — AWS CDK (TypeScript) and Node.js Lambdas",
+  "scripts": {
+    "synth": "cdk synth",
+    "test": "node --import tsx --test test/*.test.ts",
+    "learn": "tsx learn/run-step.ts",
+    "learn:status": "tsx learn/run-step.ts --status",
+    "cdk": "cdk"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "@aws-sdk/util-dynamodb": "^3.700.0",
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.2",
+    "sqids": "^0.3.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.10.0",
+    "aws-cdk": "^2.170.0",
+    "esbuild": "^0.24.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

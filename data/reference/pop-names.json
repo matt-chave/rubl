@@ -1,0 +1,7 @@
+[
+  { "code": "END", "chemicalName": "Endosulfan" },
+  { "code": "HCBD", "chemicalName": "Hexachlorobutadiene" },
+  { "code": "PCNS", "chemicalName": "Polychlorinated naphthalenes" },
+  { "code": "PFHXS", "chemicalName": "Perfluorohexane sulfonic acid" },
+  { "code": "PCB", "chemicalName": "Polychlorinated biphenyls" }
+]
