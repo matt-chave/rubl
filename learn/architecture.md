@@ -32,7 +32,7 @@ Updates (`PUT`) revise a stage and snapshot the previous CURRENT record into **h
 - Legal-entity / permit register as its own system
 - International waste (TFS)
 - Statutory BI dashboards and regulator case-working
-- GOV.UK Pay / the £26 annual subscription (charging here is a **per-event placeholder tariff**)
+- GOV.UK Pay and waste-operator onboarding (the £26 annual fee belongs on the **same** operator ledger; this slice only writes per-event placeholder lines)
 
 UK legislation allows reporting within a **window** (often discussed as 48 hours), so the physical world can be out of order. This tutorial still enforces some **lifecycle** rules in `rules.ts` (for example you cannot collect a deleted movement). Treat that as a teaching subset, not a full reconciliation engine.
 
@@ -161,7 +161,7 @@ The API Lambda does **not** call `PutEvents`. If DynamoDB succeeded and the bus 
 
 **What:** Reads the queue, writes one ledger line per event (placeholder tariff).
 
-**Why:** Billing language (operator, tariff, line) must not live in the movements table. This is **not** the annual subscription product.
+**Why:** Billing language (operator, tariff, line) must not live in the movements table. Per-event lines and the £26 annual fee share this ledger (`PK=OPERATOR#`); they differ by SK and trigger. Onboarding / GOV.UK Pay are later.
 
 ### [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/home.html)
 

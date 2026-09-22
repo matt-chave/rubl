@@ -1,0 +1,17 @@
+{
+  "apiCode": "25b14080-5e77-4f91-9957-2482a0cb8775",
+  "actualDateTimeCollected": "2025-09-15T10:00:00Z",
+  "collectionType": "STATIC",
+  "dutyOfCareConfirmed": true,
+  "carrier": {
+    "meansOfTransport": "Road",
+    "organisationName": "Test Carrier Ltd",
+    "registrationNumber": "CBDU123456",
+    "vehicleRegistration": "AB12 CDE",
+    "emailAddress": "carrier@example.co.uk"
+  },
+  "collectionSite": {
+    "siteName": "Test Producer yard",
+    "address": { "fullAddress": "1 Test Street, London", "postcode": "SW1A 1AA" }
+  }
+}

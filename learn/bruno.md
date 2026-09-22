@@ -1,6 +1,6 @@
-# Bruno — optional GUI for step 07
+# Bruno — GUI for steps 07 and 10
 
-[Bruno](https://www.usebruno.com/) is a desktop HTTP client. It does the same job as the `curl` in [step 07](steps/07-api-proving-path/README.md): JWT + `x-api-key` + JSON body. It is **not** required for `npm run learn -- 07`. Pick Bruno **or** [Postman](postman.md), not both.
+[Bruno](https://www.usebruno.com/) is a desktop HTTP client. It does the same job as `curl`: JWT + `x-api-key` + JSON body. Step 07 can still use curl; [step 10](steps/10-remaining-and-prod/README.md) walks the full journey in Bruno first (curl is the alternative there). Pick Bruno **or** [Postman](postman.md), not both.
 
 Do not paste client secrets, API keys, or tokens into chat.
 
@@ -21,7 +21,7 @@ Docs: [Bruno documentation](https://docs.usebruno.com/).
 
 1. **Create Collection** → name `dwt-sandbox` → save it **outside** this git repo (or add `*.bru` secrets to `.gitignore` if you insist on saving next to the code). Do not commit secrets.
 2. Right-click the collection → **Settings** / **Environments** → **Create Environment** → name `dev`.
-3. Add variables (values from step 07 collect-outputs / Cognito — paste from your password manager, not from chat):
+3. Open the environment picker (top right) → **Configure** → `dev`. Add a row per variable (**Name** / **Value**). Values come from step 07 collect-outputs / Cognito — paste from your terminal or password manager, not from chat. Tick **Secret** for `clientSecret` and `apiKey` if Bruno offers it:
 
    | Name | Value |
    |---|---|
@@ -31,6 +31,8 @@ Docs: [Bruno documentation](https://docs.usebruno.com/).
    | `clientSecret` | Cognito app client secret |
    | `apiKey` | Secrets Manager API key (not the Cognito secret) |
    | `token` | leave empty — filled after Get token |
+   | `movementId` | leave empty — filled after Create movement (step 10) |
+   | `deliveryId` | leave empty — filled after Record delivery (step 10) |
 
 4. Select environment **dev** in the top-right.
 
@@ -52,7 +54,11 @@ This is lesson 05: client credentials, not `/movements`.
 6. Copy `access_token` into the environment variable `token` so request 2 can use `{{token}}`. On the **Tests** tab you can set:
 
    ```javascript
-   bru.setEnvVar("token", res.body.access_token);
+   const body = typeof res.getBody === "function" ? res.getBody() : res.body;
+   const parsed = typeof body === "string" ? JSON.parse(body) : body;
+   if (parsed && parsed.access_token) {
+     bru.setEnvVar("token", parsed.access_token);
+   }
    ```
 
    Do not screenshot it.
@@ -71,6 +77,8 @@ This is lesson 05: client credentials, not `/movements`.
 
 4. **Body** → **JSON**. Paste the contents of [`learn/fixtures/create-movement.json`](fixtures/create-movement.json) (not the secrets).
 5. **Send**. Expect **201** and a `movementId`.
+
+The rest of the journey (collection → delivery → receipt → fate → EWC) is click-by-click in [step 10](steps/10-remaining-and-prod/README.md): duplicate **Create movement**, keep `Authorization: Bearer {{token}}` and `x-api-key: {{apiKey}}`, change the URL and body, and use `bru.setEnvVar` for `movementId` / `deliveryId`.
 
 ## Make it fail (same as step 07.6)
 

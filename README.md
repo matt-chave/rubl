@@ -167,7 +167,7 @@ A 201 body looks like `{ "movementId": "25HRA0B2", "validation": { "warnings": [
 - **Append-only EVENT items** — DynamoDB can `UpdateItem`; we do not, so the legal trail cannot be overwritten. PUTs snapshot CURRENT into the history table first.
 - **Speakable IDs** — year-prefixed [sqids](https://sqids.org/) from an atomic DynamoDB counter (`25HRA0B2`). Opaque to callers.
 - **Bronze JSON, silver Parquet** — Firehose lands the raw envelope (nested `payload`). A later Glue job writes Parquet. Do not convert at ingest: a Glue schema at write time drops records when OpenAPI evolves.
-- **Charging is isolated** — SQS + DLQ. One movement event = one ledger line (placeholder tariff) until a statutory fee is confirmed. This is not the £26 annual subscription.
+- **Charging is isolated** — SQS + DLQ. One movement event = one ledger line (placeholder tariff) until a statutory per-event fee is confirmed. The £26 annual fee is the same operator ledger, written at onboarding and yearly — not in this slice.
 
 ## Out of scope
 

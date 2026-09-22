@@ -738,3 +738,231 @@ Some operations also import `movementIsHazardous` from the same file — that is
 **A:** Yes. Every step README now ends with **Save your work (GitHub)**: `git status`, `git add -A`, review, `git commit`, `git push` from the repo root. Shared notes: [`learn/commit.md`](../commit.md). Push needs `origin` from step 04b — skip it before then. Do not commit `.env`, keys, or tokens. `nothing to commit` is fine if you only read.
 
 **Code:** `learn/commit.md`, `learn/steps/*/README.md`
+
+---
+
+## 2026-09-22 — Explain DwtCharging and self-explanatory comments
+
+**Step:** 09
+
+**Q:** Need to explain what is happening in DwtCharging and make sure the comments within it make how it works self-explanatory.
+
+**A:** `DwtCharging` is the Billing subscriber on the same bus as the lake: chargeable lifecycle types only → SQS → Lambda → operator ledger (`OPERATOR#` / `PAYMENT#`). The API never calls it; a down worker still leaves `201`. DLQ after five failures + alarm is the pager. Per-event amount is a placeholder. The £26 annual fee is the **same** ledger (different SK, onboarding then yearly) — not implemented here. Comments in [`charging-stack.ts`](../../infra/lib/stacks/charging-stack.ts) and the charging Lambda are the walkthrough.
+
+**Code:** `infra/lib/stacks/charging-stack.ts`, `src/lambdas/charging/index.ts`, `learn/steps/09-charging/README.md`
+
+---
+
+## 2026-09-22 — Does the £26 fee share the charging schema?
+
+**Step:** 09
+
+**Q:** You say this is not the £26 annual subscription, that is a different Billing workflow. It would end up in the same charging schema though wouldn't it? We will need to consider waste operator onboarding at a later time. The £26 fee is incurred initially here then due annually after that.
+
+**A:** Yes — same Billing context and the same operator ledger (`PK=OPERATOR#`). It is a different *line* (`SK` like `SUBSCRIPTION#<year>`, not `PAYMENT#<eventId>`) and a different *trigger* (operator onboarded, then anniversary), not a second table. GOV.UK Pay and onboarding stay later; when they arrive they should `PutItem` this table. This slice still only writes per-event placeholder units.
+
+**Code:** `infra/lib/stacks/charging-stack.ts`, `src/lambdas/charging/index.ts`, `learn/steps/09-charging/README.md`
+
+---
+
+## 2026-09-22 — Step 09.4 queues have no messages
+
+**Step:** 09
+
+**Q:** For step 4 - what should I see? I've looked at the queues and there aren't any messages there.
+
+**A:** An empty queue is the happy path. The charging Lambda receives and deletes the SQS message in about a second, so **Send and receive messages** stays empty. Look at queue **Monitoring** (messages sent / deleted) and step 5 — a `PAYMENT#` row on the operator ledger. Available messages = 0 and a ledger row means it worked. Empty ledger as well: POST again after the stack was `CREATE_COMPLETE`.
+
+**Code:** `learn/steps/09-charging/README.md`
+
+---
+
+## 2026-09-22 — What do I do in lesson 09 step 5?
+
+**Step:** 09
+
+**Q:** Not sure what I'm doing in step 5
+
+**A:** Read the operator ledger — do not create a table. `echo` output `OperatorLedgerTableName` (hashed `DwtCharging-OperatorLedger…`). [DynamoDB tables](https://eu-west-2.console.aws.amazon.com/dynamodbv2/home?region=eu-west-2#tables) → that name → **Explore table items** → **Run**. Expect `PK=OPERATOR#…`, `SK=PAYMENT#…`, `eventType=MOVEMENT_CREATED`, `amount=1`, `publicId` = the 201 `movementId`. Same via `aws dynamodb scan` with the `--query` in the README. This is not the movements table.
+
+**Code:** `learn/steps/09-charging/README.md`
+
+---
+
+## 2026-09-22 — Lesson 10 journey in Bruno and curl
+
+**Step:** 10
+
+**Q:** For lesson 10 can this show detailed steps for walking the journey with Bruno (and also give the equivalent curl commands).
+
+**A:** Yes. Step 10 now walks create → STATIC collection → delivery → receipt → fate → EWC with Bruno and curl for each call. New fixtures: `record-collection.json`, `record-delivery.json`, `record-receipt.json`. Bruno stores `movementId` / `deliveryId` via `bru.setEnvVar`. Curl uses `jq` to capture ids and inject `movementIds`. Fate should end `RECEIVED`. Do not paste tokens into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md`, `learn/fixtures/record-collection.json`
+
+---
+
+## 2026-09-22 — Lesson 10 Bruno setup then curl alternative
+
+**Step:** 10
+
+**Q:** In the manual steps you will need to give instructions for doing this all in Bruno (and then give the alternative approach using curl). It will need to explain how to setup Bruno initially to do these steps as well as instructions for using Bruno.
+
+**A:** Step 10 is Bruno-first. Manual steps 0–0d cover install (`brew install --cask bruno` or [downloads](https://www.usebruno.com/downloads)), collection `dwt-sandbox`, environment `dev`, CloudFormation → env vars (`apiBase`, `tokenUrl`, `clientId`, `clientSecret`, `apiKey`, plus empty `token` / `movementId` / `deliveryId`), and how headers + `bru.setEnvVar` work. Steps 1–7 are click-by-click Bruno requests. **Alternative: curl** is the same journey in the terminal. Shared setup notes stay in [`learn/bruno.md`](../bruno.md). Do not paste tokens or API keys into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md`, `learn/bruno.md`
+
+---
+
+## 2026-09-22 — Which values go into Bruno vars?
+
+**Step:** 10
+
+**Q:** When you say "Copy CloudFormation / Secrets Manager values into Bruno vars — not into chat" which ones are these? The client or the AWS Key?
+
+**A:** Both **vendor** secrets, not your AWS IAM access key. Bruno `dev` needs `clientId` + `clientSecret` (Cognito app client — used by **Get token**) **and** `apiKey` (Secrets Manager value behind `DwtApi` `ApiKeySecretArn` — the `x-api-key` header). Also paste the URLs `apiBase` and `tokenUrl`. Leave `token` / `movementId` / `deliveryId` empty. Do **not** put `aws configure` access keys into Bruno or into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (section 0c)
+
+---
+
+## 2026-09-22 — How to record vendor client id/secret in Bruno
+
+**Step:** 10
+
+**Q:** I'm still uncertain. This is the vendor client id and secret? How do I record them in Bruno?
+
+**A:** Yes — Cognito **app client** id and secret from `DwtAuth` (the vendor M2M client), not IAM keys. Record them as environment variables: top-right picker → **Configure** → `dev` → add rows `clientId` and `clientSecret` (Name / Value) → Save → keep **dev** selected. Do not paste them into the Get token body; that request uses `{{clientId}}` / `{{clientSecret}}` as Basic auth. Also add `apiBase`, `tokenUrl`, `apiKey` the same way. Do not paste the values into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (section 0c)
+
+---
+
+## 2026-09-22 — Step 0c export prints nothing
+
+**Step:** 10
+
+**Q:** When I run the export in step 0c it doesn't return anything.
+
+**A:** Expected. `export AWS_PROFILE=dwt-dev` (and `export AWS_DEFAULT_REGION=eu-west-2`) only set this terminal — they never print. The values come from the following `aws cloudformation describe-stacks` lines, each of which should print one URL/ARN/id. `POOL=$(…)` / `CLIENT_ID=$(…)` are also silent; only `describe-user-pool-client` prints the Cognito secret. If those `aws` commands are blank or error, check region **eu-west-2** and that `DwtApi` / `DwtAuth` exist. `describe-stacks --stack-name DwtApi --query Stacks[0].StackStatus` should print `CREATE_COMPLETE` or `UPDATE_COMPLETE`. Do not paste secrets or `sts` JSON into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (section 0c)
+
+---
+
+## 2026-09-22 — How do I print each next value in the terminal?
+
+**Step:** 10
+
+**Q:** How do I "Print each next value in your terminal"
+
+**A:** Run each `aws cloudformation describe-stacks … --output text` command in the same terminal where you exported the profile. The one line AWS writes back *is* the value — there is no extra `print` or `echo`. Copy that line into the matching Bruno `dev` var (`apiBase`, then the Secrets Manager ARN → `apiKey`, then `tokenUrl`, then `clientId`). Do not paste those lines into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (section 0c)
+
+---
+
+## 2026-09-22 — Commands for tokenUrl and the other Bruno vars
+
+**Step:** 10
+
+**Q:** Can you give the commands for tokenUrl, etc.
+
+**A:** Same terminal as `export AWS_PROFILE=dwt-dev` and `export AWS_DEFAULT_REGION=eu-west-2`. `tokenUrl`: `describe-stacks DwtAuth` query `TokenUrl`. `clientId`: same stack, query `ClientId`. `clientSecret`: `describe-user-pool-client` after capturing `UserPoolId` and `ClientId`. `apiBase`: `DwtApi` query `ApiBaseUrl`. `apiKey`: `DwtApi` query `ApiKeySecretArn`, then `secretsmanager get-secret-value`. Copy each one-line result into Bruno `dev`. Do not paste the outputs into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (section 0c)
+
+---
+
+## 2026-09-22 — What does Get token do?
+
+**Step:** 10
+
+**Q:** I don't understand what 1. Get Token is doing.
+
+**A:** It is a login for **vendor software**, not a waste-API call. Bruno POSTs to Cognito `{{tokenUrl}}` (`/oauth2/token`) with HTTP Basic (`{{clientId}}` / `{{clientSecret}}`) and form fields `grant_type=client_credentials` and `scope=dwt/movements`. Cognito returns a JWT in `access_token`. The Tests script stores it as Bruno `token`. Later requests send `Authorization: Bearer {{token}}` to API Gateway. Same as lesson 05. It does not create a movement.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (step 1), `learn/steps/05-auth-stack/README.md`
+
+---
+
+## 2026-09-22 — What am I doing in lesson 10 step 5?
+
+**Step:** 10
+
+**Q:** What am i doing in step 5?
+
+**A:** Recording a **receipt**: the receiving site accepts the waste that step 4 delivered. Bruno POSTs [`learn/fixtures/record-receipt.json`](../fixtures/record-receipt.json) to `{{apiBase}}/deliveries/{{deliveryId}}/receipt` with the same JWT + API key. Expect **201**. That writes `WASTE_RECEIVED` and makes fate **RECEIVED**. `receiverSite` must include site name, permit, address, and email or phone. This is not Get token and not lesson 09’s operator-ledger look-up.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (step 5), `src/lib/operations/receipts.ts`
+
+---
+
+## 2026-09-22 — What does bru.setEnvVar on Get token do?
+
+**Step:** 10
+
+**Q:** Sorry - step 5 of 1. Get Token where I run bru.setEnvVar("token", res.body.access_token);
+
+**A:** You do not run that in a terminal. Paste it once into the Get token request’s **Tests** tab. After **Send**, Bruno executes it: `res.body.access_token` is Cognito’s JWT; `bru.setEnvVar("token", …)` stores it in the `dev` environment variable `token` so later calls can send `Bearer {{token}}`. Confirm `token` is filled in the environment picker. Do not paste the JWT into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (Get token, Tests)
+
+---
+
+## 2026-09-22 — STATIC collection did not work
+
+**Step:** 10
+
+**Q:** 3. Record STATIC collection didn't work
+
+**A:** A **201** with `{ "validation": { "warnings": [] } }` is success — collection does not return a new id. Usual failures: body still the create fixture (**400**); copied Tests `bru.setEnvVar("movementId", res.body.movementId)` wiped `dev.movementId` (**404** on retry); expired token (**401**); already collected so the next event must be TRANSIT. Replace the body with `learn/fixtures/record-collection.json`, delete that Tests line, confirm `movementId` is a `26…` sqid, then Send. Do not paste tokens into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (step 3), `learn/fixtures/record-collection.json`
+
+---
+
+## 2026-09-22 — Create movement wipes Bruno movementId
+
+**Step:** 10
+
+**Q:** Looks like movementId is getting wiped in Environment when Create Movement is run
+
+**A:** The Create movement **Tests** script was writing `undefined` into `dev.movementId`. That happens when `res.body` is a string (Bruno has not parsed JSON) or the send was not a 201, and `bru.setEnvVar` persists the empty value. Replace the Tests tab with a guarded script: parse `res.getBody()` / `res.body`, then `setEnvVar` only if `parsed.movementId` is set. Keep Get token’s `access_token` script off this request. If the 201 JSON shows a `26…` id, you can paste that into `dev` by hand.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (Create movement Tests)
+
+---
+
+## 2026-09-22 — Delete token line vs apiCode in collection JSON
+
+**Step:** 10
+
+**Q:** When you say "Delete any access_token / token line on this request (that belongs on Get token only)." what do you mean? Delete the apiCode line in the json from the record collection action?
+
+**A:** No. Leave `apiCode` in [`record-collection.json`](../fixtures/record-collection.json). “Token line” means a **Tests** tab JavaScript snippet such as `bru.setEnvVar("token", …)` or anything mentioning `access_token`, copied from Get token onto Create movement. That is not the request Body. Collection’s Body should be the full fixture, including `apiCode`.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (Create movement Tests vs Record collection Body)
+
+---
+
+## 2026-09-22 — Next collection event must be TRANSIT
+
+**Step:** 10
+
+**Q:** Still fails but differently. Here's the message: validation.errors collectionType BusinessRuleViolation "Next collection event must be TRANSIT"
+
+**A:** STATIC already exists on that movement. Collection is a sequence: first event STATIC, any later event TRANSIT (handover). A second POST of `record-collection.json` (`collectionType: STATIC`) is rejected. Skip step 3 and go to **Record delivery** with the same `movementId`. Only run Create movement again if you want a fresh STATIC practise. Do not paste ids into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (step 3), `src/lib/rules.ts` (`nextCollectionType`)
+
+---
+
+## 2026-09-22 — 401 Unauthorized on a later journey call
+
+**Step:** 10
+
+**Q:** Getting 401 { "message": "Unauthorized" }
+
+**A:** API Gateway’s Cognito authorizer rejected the JWT. Not a missing `x-api-key` (that is 403). Re-run **Get token**, confirm `dev` is selected and `token` starts `eyJ`, header `Authorization: Bearer {{token}}`, then retry the same request (delivery/receipt/fate). Do not create a new movement. Do not paste the token into chat.
+
+**Code:** `learn/steps/10-remaining-and-prod/README.md` (step 4), `learn/steps/07-api-proving-path/README.md`

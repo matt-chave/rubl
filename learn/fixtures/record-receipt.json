@@ -1,0 +1,37 @@
+{
+  "apiCode": "25b14080-5e77-4f91-9957-2482a0cb8775",
+  "dateTimeReceived": "2025-09-15T15:00:00Z",
+  "carrier": {
+    "meansOfTransport": "Road",
+    "organisationName": "Test Carrier Ltd",
+    "registrationNumber": "CBDU123456",
+    "vehicleRegistration": "AB12 CDE",
+    "emailAddress": "carrier@example.co.uk"
+  },
+  "receiverSite": {
+    "siteName": "Test Receiver Ltd",
+    "authorisationNumber": "EPR/XY9876ZA",
+    "emailAddress": "receiver@example.co.uk",
+    "address": { "fullAddress": "9 Dock Road, London", "postcode": "E16 1AH" }
+  },
+  "wasteItems": [
+    {
+      "weight": { "metric": "Tonnes", "amount": 1.5, "isEstimate": true },
+      "numberOfContainers": 2,
+      "typeOfContainers": "SKI",
+      "physicalForm": "Solid",
+      "classification": {
+        "ewcCodes": ["200108"],
+        "wasteDescription": "Kitchen waste",
+        "containsPops": false,
+        "containsHazardous": false
+      },
+      "intendedTreatments": [
+        {
+          "disposalOrRecoveryCode": "R3",
+          "weight": { "metric": "Tonnes", "amount": 1.5, "isEstimate": true }
+        }
+      ]
+    }
+  ]
+}

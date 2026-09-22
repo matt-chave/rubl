@@ -1,13 +1,17 @@
 /**
  * Charging Lambda — SQS consumer for the Billing bounded context.
  *
- * Ingestion must never wait on this function. If we fail, SQS retries then
- * the DLQ + alarm fire. Payments are keyed by eventId so a retry cannot
- * double-charge the operator ledger.
+ * Invoked by the queue, never by API Gateway. Ingestion must not wait on
+ * this function. If we throw, SQS retries then the DLQ + alarm fire.
+ *
+ * EventBridge wraps the envelope: body is { detail: MovementEventEnvelope }.
+ * Payments are PK=OPERATOR#<apiCode>, SK=PAYMENT#<eventId> so a replay of
+ * the same event is a no-op (ConditionExpression), not a second fee.
  *
  * Amount is a placeholder unit (1 event = 1 ledger line) until a statutory
- * tariff is confirmed. This is per-event charging, not the £26 annual
- * subscription that lives in a different Billing workflow.
+ * per-event tariff is confirmed. The £26 annual fee is the same table
+ * (same operator PK) with a subscription SK, written at onboarding and
+ * again each year — not implemented in this slice.
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
@@ -53,6 +57,7 @@ export const handler = async (event: SQSEvent): Promise<void> => {
         TableName: table,
         Item: {
           PK: `OPERATOR#${envelope.apiCode}`,
+          // Per-event line. Annual £26 would be e.g. SUBSCRIPTION#<year>.
           SK: `PAYMENT#${envelope.eventId}`,
           eventId: envelope.eventId,
           eventType: envelope.eventType,

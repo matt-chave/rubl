@@ -98,6 +98,7 @@ export interface EventRecord {
   gsi1pk: string
 }
 
+/** Lifecycle writes billed once. Keep in sync with CHARGEABLE in charging-stack.ts. */
 export const CHARGEABLE_EVENT_TYPES: ReadonlySet<EventType> = new Set([
   'MOVEMENT_CREATED',
   'WASTE_COLLECTED',
