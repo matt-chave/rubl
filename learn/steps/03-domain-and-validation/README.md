@@ -38,3 +38,17 @@ Re-runs validation/ID tests and asserts the split modules exist.
 ## Next
 
 Step 04: which environment you will use (local / mock / AWS).
+
+## Save your work (GitHub)
+
+From the **repo root** (`rubl/`). Why and what not to commit: [`learn/commit.md`](../../commit.md).
+
+```bash
+git status
+git add -A
+git status
+git commit -m "learn: complete step 03 — domain and validation"
+git push
+```
+
+`nothing to commit` is fine if you only read. `git push` needs `origin` from step 04b — skip it until then. Do not commit `.env`, keys, or tokens.

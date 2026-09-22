@@ -1,10 +1,14 @@
 /**
- * AuthStack — the IAM bounded context at the edge.
+ * AuthStack — the IAM bounded context at the edge (CDK stack id: DwtAuth).
  *
- * Cognito stands in for Defra identity. Machine-to-machine vendors use the
- * OAuth2 client-credentials grant; API Gateway validates the JWT locally
- * (JWKS) so we never call Cognito per movement. Swap the User Pool for a
- * Defra OIDC issuer later without touching Lambda code.
+ * `cdk deploy DwtAuth` *creates* this User Pool. Do not click Create user
+ * pool (or Create user) in the Cognito console first — the list should be
+ * empty until this stack succeeds.
+ *
+ * There are no human Cognito users here. A vendor is an app client
+ * (`client_id` + `client_secret`) using the OAuth2 client-credentials grant.
+ * API Gateway later checks the JWT locally (JWKS). Swap this pool for a
+ * Defra OIDC issuer without touching Lambda code.
  *
  * Human UI login (GOV.UK One Login) is out of scope for this slice.
  */
@@ -21,6 +25,8 @@ export class AuthStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props)
 
+    // The *type*: one pool for machine vendors, not a list of companies.
+    // selfSignUpEnabled is false: we are not onboarding people.
     this.userPool = new cognito.UserPool(this, 'VendorPool', {
       userPoolName: 'dwt-vendor-m2m',
       selfSignUpEnabled: false,
@@ -29,6 +35,7 @@ export class AuthStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     })
 
+    // Custom scope on the access token: `dwt/movements` (identifier/scopeName).
     const movementsScope = new cognito.ResourceServerScope({
       scopeName: 'movements',
       scopeDescription: 'Submit, update and query waste movement records',
@@ -40,6 +47,10 @@ export class AuthStack extends Stack {
       scopes: [movementsScope],
     })
 
+    // One *instance* so this workshop can get a token. Do not treat this as
+    // the production onboarding path: a new vendor must not require
+    // `cdk deploy DwtAuth`. IAM would CreateUserPoolClient (often after a
+    // DevEx conformance event). Not a username. Console: App clients.
     this.userPoolClient = this.userPool.addClient('VendorM2m', {
       userPoolClientName: 'dwt-vendor-software',
       generateSecret: true,
@@ -51,8 +62,8 @@ export class AuthStack extends Stack {
     })
     this.userPoolClient.node.addDependency(resourceServer)
 
-    // Hosted UI domain is required for the token endpoint even for M2M.
-    // Prefix must be globally unique; account+region keeps sandbox deploys apart.
+    // Hosted UI domain is required for /oauth2/token even with no login page.
+    // Prefix must be globally unique; account id keeps sandbox deploys apart.
     const prefix = `dwt${this.account}`.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 63)
     this.domain = this.userPool.addDomain('Domain', {
       cognitoDomain: { domainPrefix: prefix || 'dwtmovements' },

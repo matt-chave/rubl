@@ -1,9 +1,20 @@
 /**
- * ApiStack — REST API (v1) with Cognito JWT + API key on every route.
+ * ApiStack — HTTP edge for Core Movements (CDK stack id: DwtApi).
  *
- * REST rather than HTTP API because usage plans / API keys only exist on
- * REST. Each OpenAPI operationId is its own Lambda so we can scale and
- * deploy one endpoint without the others.
+ * `cdk deploy DwtApi` creates API Gateway REST + one Lambda per OpenAPI
+ * operationId. Do not click Create API in the console first. Needs DwtAuth
+ * (User Pool) and DwtLedger (tables) already deployed — this stack *uses*
+ * them; it does not create Cognito or DynamoDB.
+ *
+ * REST (v1), not HTTP API: usage plans and API keys exist only on REST.
+ * Every route requires Cognito JWT *and* x-api-key. Lambdas validate and
+ * write the ledger; they never PutEvents (the stream does that in step 08).
+ *
+ * The single API key here is a sandbox shortcut (same smell as one Cognito
+ * app client). Production would issue keys per vendor, not cdk-deploy them.
+ *
+ * Human UI (GOV.UK One Login) is out of scope. Stage name "prod" is the
+ * API Gateway stage, not the AWS prod account.
  */
 
 import { CfnOutput, Stack, StackProps } from 'aws-cdk-lib'
@@ -28,6 +39,7 @@ interface RouteSpec {
   description: string
 }
 
+// 1:1 with OpenAPI operationId and src/lambdas/<operationId>/index.ts
 const ROUTES: RouteSpec[] = [
   { operationId: 'createMovement', method: 'POST', path: 'movements', description: 'Create a waste movement' },
   { operationId: 'updateMovement', method: 'PUT', path: 'movements/{movementId}', description: 'Update a waste movement' },
@@ -35,7 +47,9 @@ const ROUTES: RouteSpec[] = [
   { operationId: 'updateCollection', method: 'PUT', path: 'movements/{movementId}/collection', description: 'Update collection' },
   { operationId: 'getFateOfWaste', method: 'GET', path: 'movements/{movementId}/fate-of-waste', description: 'Fate of waste query' },
   { operationId: 'createReceiptMovementLegacy', method: 'POST', path: 'movements/receive', description: 'Phase 1 receipt (deprecated)' },
-  { operationId: 'updateReceiptMovementLegacy', method: 'PUT', path: 'movements/{wasteTrackingId}/receive', description: 'Phase 1 receipt update (deprecated)' },
+  // API Gateway REST allows only one {param} name under /movements/*.
+  // OpenAPI still calls it wasteTrackingId; the value is a Phase 1 id.
+  { operationId: 'updateReceiptMovementLegacy', method: 'PUT', path: 'movements/{movementId}/receive', description: 'Phase 1 receipt update (deprecated)' },
   { operationId: 'recordDelivery', method: 'POST', path: 'deliveries', description: 'Record a delivery' },
   { operationId: 'updateDelivery', method: 'PUT', path: 'deliveries/{deliveryId}', description: 'Soft-delete or restore a delivery' },
   { operationId: 'recordReceipt', method: 'POST', path: 'deliveries/{deliveryId}/receipt', description: 'Record receipt against a delivery' },
@@ -78,11 +92,14 @@ export class ApiStack extends Stack {
       },
     })
 
+    // Check JWT locally (JWKS). Does not call Cognito per POST.
     const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'JwtAuthorizer', {
       cognitoUserPools: [props.userPool],
       identitySource: 'method.request.header.Authorization',
     })
 
+    // Sandbox: one key for the proving path. Value lives in Secrets Manager
+    // (output ApiKeySecretArn). Not the Cognito client secret.
     const apiKeySecret = new secretsmanager.Secret(this, 'VendorApiKey', {
       description: 'API Gateway key value for vendor software',
       generateSecretString: {
@@ -107,6 +124,10 @@ export class ApiStack extends Stack {
     // Spec server URL is /dwt — keep that prefix so vendor paths match OpenAPI.
     const dwt = this.api.root.addResource('dwt')
 
+    // Each method: JWT + API key, then Lambda. Handler is thin (validate → ledger).
+    // authorizationScopes forces the Cognito authorizer to accept an *access*
+    // token (client credentials). Without scopes it expects an ID token and
+    // POST /movements returns 401 Unauthorized for M2M JWTs.
     for (const route of ROUTES) {
       const fn = new DwtLambda(this, route.operationId, {
         operationId: route.operationId,
@@ -118,6 +139,7 @@ export class ApiStack extends Stack {
       resource.addMethod(route.method, new apigateway.LambdaIntegration(fn), {
         authorizer,
         authorizationType: apigateway.AuthorizationType.COGNITO,
+        authorizationScopes: ['dwt/movements'],
         apiKeyRequired: true,
       })
     }

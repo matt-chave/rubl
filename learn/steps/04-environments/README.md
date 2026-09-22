@@ -45,7 +45,7 @@ Confirms the environment docs exist and `progress.json` has a valid `environment
 
    You should see an `Account` number. Then set `"environment": "dev"` in [`learn/progress.json`](../../progress.json).
 5. If staying local: you can still read steps 05–10 as theory. The runner will fail 05 until credentials work — that is the gate. Step 04b (GitHub) still runs with no AWS.
-6. Optional: `docker run --rm -p 4566:4566 localstack/localstack` and `aws --endpoint-url=http://localhost:4566 sts get-caller-identity` to feel a mock API. Know its limits (Pipes, Cognito M2M, Firehose Parquet).
+6. Optional: `docker run --rm -p 4566:4566 localstack/localstack` and `aws --endpoint-url=http://localhost:4566 sts get-caller-identity` to feel a mock API. Know its limits (Pipes, Cognito M2M, Firehose + Glue lake).
 
 ## Quiz
 
@@ -54,3 +54,17 @@ Confirms the environment docs exist and `progress.json` has a valid `environment
 ## Next
 
 Step 04b: put this folder on GitHub so others can clone it (still no AWS). Then step 05 deploys **only** `DwtAuth` — including `cdk bootstrap` the first time. If you have no account, stop after 04b and keep 01–04b as the local lab.
+
+## Save your work (GitHub)
+
+From the **repo root** (`rubl/`). Why and what not to commit: [`learn/commit.md`](../../commit.md).
+
+```bash
+git status
+git add -A
+git status
+git commit -m "learn: complete step 04 — environments"
+git push
+```
+
+`nothing to commit` is fine if you only read. `git push` needs `origin` from step 04b — skip it until then. Do not commit `.env`, keys, or tokens.

@@ -26,7 +26,7 @@ npm -v
 
 | Tool | Why | Install |
 |---|---|---|
-| **git** | Local history, then push to GitHub | [git-scm.com](https://git-scm.com/) — macOS: `git --version` (Xcode CLT if prompted) |
+| **git** | Local history, then push to GitHub | [git-scm.com](https://git-scm.com/) — macOS: `git --version` (Xcode CLT if prompted). Each lesson ends with a checkpoint; notes in [commit.md](commit.md) |
 | **A GitHub account** | Server copy others clone | [github.com](https://github.com/) |
 | **GitHub CLI** (`gh`) | Optional: create + push in one command | [cli.github.com](https://cli.github.com/) |
 
@@ -55,17 +55,17 @@ aws sts get-caller-identity
 
 | Tool | Why |
 |---|---|
-| **[Bruno](https://www.usebruno.com/)** or **[Postman](https://www.postman.com/)** | GUI to send Bearer + `x-api-key` + JSON body, save collections |
+| **[Bruno](bruno.md)** or **[Postman](postman.md)** | GUI to send Bearer + `x-api-key` + JSON body. Install + how-to in those files |
 | **[AWS Management Console](https://eu-west-2.console.aws.amazon.com/console/home?region=eu-west-2)** (browser) | [Cognito](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2), [DynamoDB](https://eu-west-2.console.aws.amazon.com/dynamodbv2/home?region=eu-west-2#tables), [SQS](https://eu-west-2.console.aws.amazon.com/sqs/v3/home?region=eu-west-2#/queues), [S3](https://s3.console.aws.amazon.com/s3/home?region=eu-west-2) after a write |
 
-A saved Bruno/Postman request is the same as the `curl` in step 07 — pick the one you will actually look at.
+A saved Bruno/Postman request is the same as the `curl` in step 07 — pick **one**.
 
 ## Optional later
 
 | Tool | Why |
 |---|---|
 | **Docker** | LocalStack mock (see [environments.md](environments.md)) |
-| **Amazon Athena** (console) | Query Parquet in the lake after step 08 |
+| **Amazon Athena** (console) | Query silver Parquet after the step 08 Glue job |
 | **CloudWatch Logs** | Read Lambda errors if a 500 appears |
 
 ## What the automated checks use

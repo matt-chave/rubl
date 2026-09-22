@@ -34,3 +34,17 @@ This asserts Node ≥ 22, runs `npm test`, and confirms the tutorial files exist
 ## Next
 
 Step 02: synthesise CloudFormation without an account.
+
+## Save your work (GitHub)
+
+From the **repo root** (`rubl/`). Why and what not to commit: [`learn/commit.md`](../../commit.md).
+
+```bash
+git status
+git add -A
+git status
+git commit -m "learn: complete step 01 — workshop setup"
+git push
+```
+
+`nothing to commit` is fine if you only read. `git push` needs `origin` from step 04b — skip it until then. Do not commit `.env`, keys, or tokens.

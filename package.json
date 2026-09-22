@@ -1,5 +1,5 @@
 {
-  "name": "report-waste-movements",
+  "name": "rubl",
   "version": "0.1.0",
   "private": true,
   "description": "Digital Waste Tracking Service — AWS CDK (TypeScript) and Node.js Lambdas",

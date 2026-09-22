@@ -1,9 +1,10 @@
 /**
- * Node.js 22 Lambda with X-Ray, table env vars, and least-privilege DynamoDB.
+ * One Node.js 22 Lambda per OpenAPI operationId (used by DwtApi).
  *
- * One construct per OpenAPI operationId so CDK and the src/lambdas folder
- * stay 1:1. Shared code is bundled from src/lib by esbuild — there is no
- * Lambda layer to version.
+ * Entry is src/lambdas/<operationId>/index.ts. Shared code is bundled from
+ * src/lib by esbuild — there is no Lambda layer. Table names come in as
+ * env vars; IAM is grantReadWriteData on movements / history / sequences.
+ * Auth is at API Gateway, not in this construct.
  */
 
 import * as path from 'path'

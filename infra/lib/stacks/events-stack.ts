@@ -1,14 +1,20 @@
 /**
- * EventsStack — fan-out after a durable ledger write.
+ * EventsStack — fan-out after a durable ledger write (CDK stack id: DwtEvents).
  *
  * DynamoDB Streams → EventBridge Pipe (with enrichment) → custom bus.
  * The bus then fans out:
- *   1. Kinesis Data Stream → Firehose (Parquet) → S3 lake
- *   2. Charging SQS (wired in ChargingStack)
+ *   1. Kinesis → Firehose → S3 bronze/ (raw JSONL)
+ *   2. Glue job (on demand) rebuilds S3 silver/ as Parquet
+ *   3. Charging SQS (wired in ChargingStack)
  *
  * Why not PutEvents from the API Lambda: a dual-write can succeed in
  * DynamoDB and fail on the bus. Streams make the stored EVENT the source
  * of truth.
+ *
+ * Why bronze JSON then silver Parquet: Firehose must not convert at
+ * ingest. A Glue schema at write time breaks when OpenAPI evolves and
+ * the failed record is the only copy. Bronze is durable. Silver is a
+ * later job you can rerun.
  */
 
 import { Duration, RemovalPolicy, Stack, StackProps, CfnOutput } from 'aws-cdk-lib'
@@ -21,7 +27,7 @@ import * as pipes from 'aws-cdk-lib/aws-pipes'
 import * as s3 from 'aws-cdk-lib/aws-s3'
 import { Construct } from 'constructs'
 import { DwtLambda } from '../constructs/dwt-lambda'
-import { ParquetFirehose } from '../constructs/parquet-firehose'
+import { MovementLake } from '../constructs/movement-lake'
 
 export interface EventsStackProps extends StackProps {
   movementsTable: dynamodb.Table
@@ -97,14 +103,14 @@ export class EventsStack extends Stack {
 
     new events.Rule(this, 'ToKinesis', {
       eventBus: this.eventBus,
-      description: 'All waste-movement events → Kinesis (then Parquet lake)',
+      description: 'All waste-movement events → Kinesis (then bronze JSON on S3)',
       eventPattern: {
         source: ['dwt.movements'],
         detailType: ['WasteMovementEvent'],
       },
       targets: [
         new targets.KinesisStream(this.movementStream, {
-          // Send the envelope, not the EventBridge wrapper, so Glue columns match.
+          // Envelope only — not the EventBridge wrapper — so bronze is the domain event.
           message: events.RuleTargetInput.fromEventPath('$.detail'),
         }),
       ],
@@ -119,7 +125,7 @@ export class EventsStack extends Stack {
       autoDeleteObjects: true,
     })
 
-    new ParquetFirehose(this, 'ParquetLake', {
+    const lake = new MovementLake(this, 'LakeLayers', {
       sourceStream: this.movementStream,
       lakeBucket: this.lakeBucket,
     })
@@ -127,5 +133,6 @@ export class EventsStack extends Stack {
     new CfnOutput(this, 'EventBusName', { value: this.eventBus.eventBusName })
     new CfnOutput(this, 'LakeBucketName', { value: this.lakeBucket.bucketName })
     new CfnOutput(this, 'KinesisStreamName', { value: this.movementStream.streamName })
+    new CfnOutput(this, 'SilverJobName', { value: lake.silverJobName })
   }
 }

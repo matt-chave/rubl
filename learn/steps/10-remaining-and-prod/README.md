@@ -52,3 +52,17 @@ Order matters: dependents first.
 ## After this tutorial
 
 Keep using [learn/qa/index.md](../../qa/index.md). Next questions you ask in Cursor should land there automatically (see `.cursor/rules/tutorial-qa.mdc`).
+
+## Save your work (GitHub)
+
+From the **repo root** (`rubl/`). Why and what not to commit: [`learn/commit.md`](../../commit.md).
+
+```bash
+git status
+git add -A
+git status
+git commit -m "learn: complete step 10 — remaining and prod"
+git push
+```
+
+`nothing to commit` is fine if you only read. Do not commit `.env`, keys, or tokens.

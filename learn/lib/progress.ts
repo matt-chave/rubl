@@ -21,7 +21,7 @@ export const STEPS = [
   { id: '05', dir: '05-auth-stack', title: 'Deploy Cognito and get a token', needsAws: true },
   { id: '06', dir: '06-ledger-stack', title: 'Deploy the movements ledger', needsAws: true },
   { id: '07', dir: '07-api-proving-path', title: 'API + POST /movements proving path', needsAws: true },
-  { id: '08', dir: '08-events-lake', title: 'Event bus, Kinesis, Parquet lake', needsAws: true },
+  { id: '08', dir: '08-events-lake', title: 'Event bus, Kinesis, bronze / silver lake', needsAws: true },
   { id: '09', dir: '09-charging', title: 'Charging queue and operator ledger', needsAws: true },
   { id: '10', dir: '10-remaining-and-prod', title: 'Remaining endpoints and prod promotion', needsAws: true },
 ] as const

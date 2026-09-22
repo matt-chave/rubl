@@ -22,7 +22,7 @@ Updates (`PUT`) revise a stage and snapshot the previous CURRENT record into **h
 
 - Vendor **machine-to-machine** API (OAuth2 client credentials + API key)
 - Append-only movement **events** plus a CURRENT snapshot
-- Async **regulatory lake** (Parquet on S3) and **charging** (operator ledger)
+- Async **regulatory lake** (bronze JSON then silver Parquet on S3) and **charging** (operator ledger)
 - Bundled **reference data** GETs (EWC codes, containers, …)
 
 **Not in this slice** (real DWTS neighbours, left out on purpose)
@@ -45,7 +45,7 @@ Stacks follow **bounded contexts**, not “one VPC for everything.” A billing 
 | `DwtAuth` | IAM | Issue vendor JWTs (Cognito stands in for Defra identity) |
 | `DwtLedger` | Core Movements | Durable events, CURRENT, history, ID sequences |
 | `DwtApi` | Core Movements (edge) | HTTP, auth at the door, one Lambda per operation |
-| `DwtEvents` | Regulatory reporting (lake) | Fan-out from the ledger stream to Parquet on S3 |
+| `DwtEvents` | Regulatory reporting (lake) | Fan-out from the ledger stream to bronze JSON, then silver Parquet |
 | `DwtCharging` | Billing | Isolated operator ledger off the hot path |
 
 The wider DWTS map also has Legal Entity, International Waste, a proper Reference Data service, and Developer Experience. Those are **not** deployed here.
@@ -67,7 +67,7 @@ DynamoDB movements (EVENT + CURRENT)
 EventBridge Pipe + enrichment Lambda
   ▼
 Event bus dwt-waste-movements
-  ├─► Kinesis → Firehose (Parquet via Glue) → S3
+  ├─► Kinesis → Firehose → S3 bronze/ (JSON) → Glue job → S3 silver/ (Parquet)
   └─► SQS → charging Lambda → operator ledger table
 ```
 
@@ -84,7 +84,7 @@ The API Lambda does **not** call `PutEvents`. If DynamoDB succeeded and the bus 
 | Legal trail cannot be overwritten | DynamoDB EVENT items (append-only) | We do not `UpdateItem` the event log. PUT snapshots CURRENT → history |
 | Fast “where is this movement?” | DynamoDB CURRENT + GSI | One item to read; events remain the audit log |
 | Lake / billing must not block ingestion | Streams → EventBridge → Kinesis / SQS | Async fan-out; two consumers, one durable write |
-| Regulators need cheap analytical scans | Firehose + Glue + Parquet + S3 | Columnar lake; payload stored as a JSON **string** so the OpenAPI body can evolve |
+| Regulators need cheap analytical scans | Firehose bronze JSON + Glue silver Parquet + S3 | Land the raw envelope; convert later so a spec change cannot drop the only copy |
 | A charging outage must not reject POSTs | SQS + DLQ + alarm | Queue isolates billing; alarm is how operators learn a line was missed |
 | Swap Defra identity later | Cognito as a stand-in | Change token URL / JWKS at the gateway, not the handlers |
 | UK data residency default | Region `eu-west-2` | London |
@@ -143,13 +143,13 @@ The API Lambda does **not** call `PutEvents`. If DynamoDB succeeded and the bus 
 
 **What:** Ordered buffer of envelopes (`$.detail` from the bus).
 
-**Why:** Firehose wants a stream it can read at lake pace. Kinesis absorbs ingest spikes so S3/Parquet conversion can batch.
+**Why:** Firehose wants a stream it can read at lake pace. Kinesis absorbs ingest spikes so bronze JSON can batch.
 
 ### [Kinesis Data Firehose](https://docs.aws.amazon.com/firehose/latest/dev/what-is-this-service.html) + [AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/what-is-glue.html) + [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html)
 
-**What:** Firehose converts records to **Parquet** using a Glue schema and writes to a private, versioned bucket. Glue columns are the **envelope** (`eventType`, `eventId`, `occurredAt`, `publicId`, `apiCode`) plus `payload` as a string.
+**What:** Firehose writes the envelope as **JSON lines** under `bronze/events/`. An on-demand Glue job reads bronze and writes **Parquet** under `silver/events/`, and registers `dwt_lake.silver_waste_movement_events`. `payload` stays a nested JSON object.
 
-**Why:** Regulators and analysts scan columnar files cheaply. Glue cannot track every OpenAPI field as it evolves, so the body is not exploded into hundreds of columns.
+**Why:** Bronze is the durable landing zone. Silver is a later, rebuildable projection for cheap Athena scans. Converting in Firehose would need a Glue schema *at write time* — a new OpenAPI field would send the record to `errors/` and you would lose the only copy.
 
 ### [Amazon SQS](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html) + DLQ (`DwtCharging`)
 

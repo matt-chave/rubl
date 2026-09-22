@@ -15,10 +15,11 @@ You will practise:
 
 1. Read `learn/steps/NN-*/README.md` — what is happening and why.
 2. Install any tools listed for that step (see also [tools.md](tools.md)).
-3. Run the automated check: `npm run learn -- NN`
-4. Do the **manual** checks in the README so you can see the system, not just a green tick.
+3. Do the **manual** steps in that README (including any `cdk deploy` / bootstrap).
+4. Run the automated check last: `npm run learn -- NN`. That is the green tick, not the deploy.
 5. Take the quiz in `quiz.md`. Check yourself with `quiz-answers.md`.
-6. Ask clarifying questions in chat. They are appended to [qa/index.md](qa/index.md) so you can revise later.
+6. Save the sitting: each README ends with **Save your work (GitHub)**. Notes: [commit.md](commit.md).
+7. Ask clarifying questions in chat. They are appended to [qa/index.md](qa/index.md) so you can revise later.
 
 The runner **refuses** step N if step N−1 is not in [progress.json](progress.json).
 
@@ -31,7 +32,7 @@ npm run learn -- 01           # run step 01 automated checks
 
 **Yes for steps 01–04b.** Those run on your laptop: Node tests, CDK `synth` (CloudFormation files, no account), reading code, and publishing the folder to GitHub.
 
-**Partially for later steps.** A full mock of Cognito client-credentials, EventBridge Pipes, and Firehose Parquet conversion is not faithful enough to teach the real EDA path. See [environments.md](environments.md):
+**Partially for later steps.** A full mock of Cognito client-credentials, EventBridge Pipes, Firehose bronze JSON, and Glue silver Parquet is not faithful enough to teach the real EDA path. See [environments.md](environments.md):
 
 | Environment | What you can prove | Needs |
 |---|---|---|

@@ -172,7 +172,9 @@ export async function updateReceiptMovementLegacy(
   event: APIGatewayProxyEvent,
   body: Record<string, unknown>,
 ): Promise<HandlerResult> {
-  const wasteTrackingId = pathParam(event, 'wasteTrackingId')
+  // API Gateway REST allows only one {param} name under /movements/* — see ROUTES.
+  // Gateway resource is {movementId}; the value is a Phase 1 wasteTrackingId.
+  const wasteTrackingId = pathParam(event, 'movementId')
   const { warnings } = validateOperation('updateReceiptMovementLegacy', body)
   const previous = await getCurrent(legacyPk(wasteTrackingId))
   if (!previous || previous.entityType !== 'LEGACY_RECEIPT') {

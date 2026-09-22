@@ -40,3 +40,17 @@ Runs `cdk synth` and asserts each stack template exists and mentions the expecte
 ## Next
 
 Step 02b: why these stacks exist and what “report a waste movement” includes. Then step 03 (validation).
+
+## Save your work (GitHub)
+
+From the **repo root** (`rubl/`). Why and what not to commit: [`learn/commit.md`](../../commit.md).
+
+```bash
+git status
+git add -A
+git status
+git commit -m "learn: complete step 02 — synthesise IaC"
+git push
+```
+
+`nothing to commit` is fine if you only read. `git push` needs `origin` from step 04b — skip it until then. Do not commit `.env`, keys, or tokens.

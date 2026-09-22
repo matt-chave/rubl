@@ -24,7 +24,7 @@ EventBridge Pipe (+ enrichment Lambda)
   │
   ▼
 EventBridge bus `dwt-waste-movements`
-  ├─► Kinesis Data Stream → Firehose (Parquet via Glue) → S3 lake
+  ├─► Kinesis Data Stream → Firehose → S3 bronze/ (JSON) → Glue → S3 silver/ (Parquet)
   └─► SQS → Charging Lambda → operator ledger DynamoDB
 ```
 
@@ -50,7 +50,7 @@ Why Streams then EventBridge, not `PutEvents` from the API Lambda: a dual-write 
 |---|---|---|
 | `DwtAuth` | IAM | Cognito User Pool, M2M app client, hosted-UI domain for the token endpoint |
 | `DwtLedger` | Core Movements | Movements table + stream, history table, ID sequence table |
-| `DwtEvents` | Regulatory reporting (lake) | Pipe, EventBridge bus, Kinesis, Firehose, Glue, S3 |
+| `DwtEvents` | Regulatory reporting (lake) | Pipe, EventBridge bus, Kinesis, Firehose (bronze JSON), Glue silver Parquet, S3 |
 | `DwtCharging` | Billing | SQS + DLQ, charging Lambda, operator ledger, DLQ alarm |
 | `DwtApi` | Core Movements (edge) | REST API, Cognito authorizer, API key, one Lambda per operation |
 
@@ -166,7 +166,7 @@ A 201 body looks like `{ "movementId": "25HRA0B2", "validation": { "warnings": [
 - **JWT at the gateway** — Lambdas never call Cognito per request. A later Defra identity issuer replaces the authorizer, not the handlers.
 - **Append-only EVENT items** — DynamoDB can `UpdateItem`; we do not, so the legal trail cannot be overwritten. PUTs snapshot CURRENT into the history table first.
 - **Speakable IDs** — year-prefixed [sqids](https://sqids.org/) from an atomic DynamoDB counter (`25HRA0B2`). Opaque to callers.
-- **Parquet envelope** — Glue cannot track the full evolving OpenAPI body. Lake columns are `eventType`, `eventId`, `occurredAt`, `publicId`, `apiCode`, plus `payload` as a JSON string.
+- **Bronze JSON, silver Parquet** — Firehose lands the raw envelope (nested `payload`). A later Glue job writes Parquet. Do not convert at ingest: a Glue schema at write time drops records when OpenAPI evolves.
 - **Charging is isolated** — SQS + DLQ. One movement event = one ledger line (placeholder tariff) until a statutory fee is confirmed. This is not the £26 annual subscription.
 
 ## Out of scope

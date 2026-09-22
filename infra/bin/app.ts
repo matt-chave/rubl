@@ -3,7 +3,7 @@
  * CDK app entry — five stacks matching the bounded contexts:
  *   Auth     → IAM (Cognito stand-in for Defra identity)
  *   Ledger   → Core Movements DynamoDB
- *   Events   → EventBridge + Kinesis + Parquet lake
+ *   Events   → EventBridge + Kinesis + bronze JSON / silver Parquet lake
  *   Charging → operator ledger off the hot path
  *   Api      → per-endpoint Lambdas behind REST + JWT + API key
  *

@@ -12,6 +12,7 @@ const keys = (stack.Outputs ?? []).map((o) => o.OutputKey)
 assert(keys.includes('EventBusName'), 'EventBusName missing')
 assert(keys.includes('LakeBucketName'), 'LakeBucketName missing')
 assert(keys.includes('KinesisStreamName'), 'KinesisStreamName missing')
+assert(keys.includes('SilverJobName'), 'SilverJobName missing')
 
 console.log('Step 08 automated checks passed.')
-console.log('POST a movement, wait ~2 minutes, then aws s3 ls the lake bucket.')
+console.log('POST a movement, wait ~2 minutes, aws s3 ls bronze/, then start the Glue silver job.')

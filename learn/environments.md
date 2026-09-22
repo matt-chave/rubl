@@ -23,7 +23,7 @@ It does **not** faithfully replace:
 
 - Cognito OAuth2 *client credentials* + API Gateway Cognito authorizer
 - EventBridge Pipes (DynamoDB stream → enrichment → bus)
-- Firehose data-format conversion to Parquet via Glue
+- Firehose landing JSON to S3 and a Glue bronze→silver Parquet job
 
 So LocalStack is a **sidecar for exploring tables and buckets**, not a substitute for steps 05–09.
 

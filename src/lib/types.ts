@@ -25,9 +25,9 @@ export type EventType =
 
 /**
  * Canonical envelope published onto EventBridge (and therefore onto
- * Kinesis / the charging queue). Nested OpenAPI bodies vary per endpoint,
- * so `payload` is kept as a JSON object here and serialised to a string
- * before Parquet conversion — Glue cannot evolve a full OpenAPI schema.
+ * Kinesis / the charging queue). `payload` is the accepted OpenAPI body
+ * as a JSON object. Firehose lands that envelope as bronze JSON; a later
+ * Glue job writes silver Parquet. Do not stringify here for the lake.
  */
 export interface MovementEventEnvelope {
   eventType: EventType
@@ -35,8 +35,8 @@ export interface MovementEventEnvelope {
   occurredAt: string
   publicId: string
   apiCode: string
-  /** Object on the ledger; JSON string on the Parquet lake. */
-  payload: Record<string, unknown> | string
+  /** Accepted API body. Object on the ledger, the bus, and bronze JSON. */
+  payload: Record<string, unknown>
 }
 
 export type EntityType = 'MOVEMENT' | 'DELIVERY' | 'RECEIPT' | 'LEGACY_RECEIPT'

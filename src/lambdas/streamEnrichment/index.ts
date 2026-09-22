@@ -38,8 +38,9 @@ function toEnvelope(record: StreamRecord): MovementEventEnvelope | undefined {
     occurredAt: item.occurredAt,
     publicId: item.publicId,
     apiCode: item.apiCode,
-    // Stringify nested OpenAPI bodies so Glue/Parquet sees a flat schema.
-    payload: JSON.stringify(item.payload ?? {}),
+    // Keep the accepted API body as JSON. Bronze stores this object;
+    // silver Parquet is a later Glue job, not a Firehose conversion.
+    payload: item.payload ?? {},
   }
 }
 

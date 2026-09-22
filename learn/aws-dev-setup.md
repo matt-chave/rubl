@@ -145,7 +145,23 @@ A password manager is an app that stores secrets (Apple **Passwords**, [1Passwor
 4. Save the item. Only then click **Done** on the AWS page.
 5. Paste from the clipboard into `aws configure --profile dwt-dev` next. After that, you can clear the clipboard (copy something else).
 
+`aws configure` **prints what you type** in the terminal window. Cursor keeps a transcript of that session. Treat that like a leaked secret: rotate the key (below) if it appeared on screen, and do not paste keys into chat.
+
 On this Mac, **Passwords** is in Applications (or System Settings → Passwords) if you have not installed another manager. Do not screenshot the secret or leave it in a `.txt` on the Desktop.
+
+### Rotate an access key (old one was typed in a terminal)
+
+An IAM user can have **two** access keys. Create a **new** one, point `dwt-dev` at it, then delete the **old** one.
+
+1. Open **[IAM → Users](https://console.aws.amazon.com/iam/home#/users)** ([manage access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)).
+2. Click your deployer user → **Security credentials** → **Access keys**.
+3. **[Create access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_CreateAccessKey)** → use case **CLI** → copy both values into the password manager *before* Done.
+4. `aws configure --profile dwt-dev` and paste the **new** pair (region still `eu-west-2`). Prefer a **new** terminal tab afterwards so the old secret is not in that scrollback.
+5. `export AWS_PROFILE=dwt-dev` then `aws sts get-caller-identity` (do not paste the JSON into chat).
+6. Back on the same IAM page: on the **old** key → **Actions** → **Deactivate**, then **Delete**. The `AKIA…` you typed earlier should be the one you delete.
+
+The Cognito **client secret** (`export CLIENT_SECRET=…`) is a different secret. It is not this IAM key. For this sandbox you can keep using it; do not paste it into chat either.
+
 
 If you use work **SSO** (Path B), you do not need a secret access key. You use `aws sso login` instead.
 
