@@ -21,6 +21,7 @@ export class LedgerStack extends Stack {
   public readonly movementsTable: dynamodb.Table
   public readonly historyTable: dynamodb.Table
   public readonly sequenceTable: dynamodb.Table
+  public readonly reservationsTable: dynamodb.Table
   public readonly referenceTable: dynamodb.Table
 
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -69,6 +70,24 @@ export class LedgerStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     })
 
+    // Offline ID reservations. PK = ID#<publicId>. Unused RESERVED rows
+    // expire via TTL; the public string is never recycled. Not on the
+    // movements table so TTL cannot touch legal CURRENT/EVENT items.
+    this.reservationsTable = new dynamodb.Table(this, 'IdReservations', {
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'ttl',
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      removalPolicy: RemovalPolicy.DESTROY,
+    })
+    // Unused reservations per operator (gsi1pk = OWNER#{operatorId}#RESERVED).
+    this.reservationsTable.addGlobalSecondaryIndex({
+      indexName: 'gsi1',
+      partitionKey: { name: 'gsi1pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'gsi1sk', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    })
+
     // Placeholder if EWC / taxonomy later leaves bundled JSON. Unused in this slice.
     this.referenceTable = new dynamodb.Table(this, 'Reference', {
       partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
@@ -82,5 +101,6 @@ export class LedgerStack extends Stack {
     new CfnOutput(this, 'MovementsTableStreamArn', {
       value: this.movementsTable.tableStreamArn ?? 'stream-not-enabled',
     })
+    new CfnOutput(this, 'ReservationsTableName', { value: this.reservationsTable.tableName })
   }
 }

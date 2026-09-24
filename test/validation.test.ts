@@ -59,6 +59,18 @@ describe('createMovement validation', () => {
     )
   })
 
+  it('accepts an optional reserved movementId', () => {
+    const result = validateOperation('createMovement', { ...validCreate, movementId: '26HRA0B2' })
+    assert.equal(result.warnings.length, 0)
+  })
+
+  it('rejects an empty reserved movementId', () => {
+    assert.throws(
+      () => validateOperation('createMovement', { ...validCreate, movementId: '' }),
+      (err: unknown) => err instanceof ValidationError && err.issues.some((i) => i.key === 'movementId'),
+    )
+  })
+
   it('rejects isDeleted on the wrong operation via NotAllowed in updateDelivery extra fields', () => {
     assert.throws(
       () =>

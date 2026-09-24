@@ -15,6 +15,9 @@ export function validateRecordDeliveryPayload(body: Record<string, unknown>, iss
   requireArray(body, 'movementIds', 1, issues)
   validateFullCarrier(body.carrier, 'carrier', issues, true)
   validateDeliverySite(body.deliverySite, issues)
+  if (body.deliveryId !== undefined && (typeof body.deliveryId !== 'string' || body.deliveryId.length === 0)) {
+    issues.push(issue('deliveryId', 'InvalidType', 'deliveryId must be a non-empty string'))
+  }
 }
 
 export function validateUpdateDeliveryPayload(body: Record<string, unknown>, issues: ValidationIssue[]): void {

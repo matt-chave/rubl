@@ -162,13 +162,14 @@ A 201 body looks like `{ "movementId": "25HRA0B2", "validation": { "warnings": [
 
 ## Design notes (why, not what)
 
-- **REST API, not HTTP API** — API keys and usage plans only exist on REST (v1).
-- **JWT at the gateway** — Lambdas never call Cognito per request. A later Defra identity issuer replaces the authorizer, not the handlers.
-- **Append-only EVENT items** — DynamoDB can `UpdateItem`; we do not, so the legal trail cannot be overwritten. PUTs snapshot CURRENT into the history table first.
-- **Speakable IDs** — year-prefixed [sqids](https://sqids.org/) from an atomic DynamoDB counter (`25HRA0B2`). Opaque to callers.
-- **Bronze JSON, silver Parquet** — Firehose lands the raw envelope (nested `payload`). A later Glue job writes Parquet. Do not convert at ingest: a Glue schema at write time drops records when OpenAPI evolves.
-- **Charging is isolated** — SQS + DLQ. One movement event = one ledger line (placeholder tariff) until a statutory per-event fee is confirmed. The £26 annual fee is the same operator ledger, written at onboarding and yearly — not in this slice.
+The edge is a REST API, not HTTP API, because API keys and usage plans only exist on REST (v1). The JWT is checked at the gateway so Lambdas never call Cognito per request; a later Defra identity issuer replaces the authorizer, not the handlers.
+
+EVENT items are append-only. DynamoDB can `UpdateItem`; we do not, so the legal trail cannot be overwritten. PUTs snapshot CURRENT into the history table first. Public IDs are year-prefixed [sqids](https://sqids.org/) from an atomic DynamoDB counter (`25HRA0B2`) and are opaque to callers.
+
+Firehose lands the raw envelope as bronze JSON (nested `payload`). A later Glue job writes silver Parquet. Do not convert at ingest: a Glue schema at write time drops records when OpenAPI evolves.
+
+Charging is isolated behind SQS and a DLQ. One movement event writes one ledger line (a placeholder tariff) until a statutory per-event fee is confirmed. The £26 annual fee is the same operator ledger, written at onboarding and yearly — not in this slice.
 
 ## Out of scope
 
-WAF/Shield, private API + VPC, GOV.UK One Login, GOV.UK Pay, regulatory BI dashboards, spreadsheet upload.
+This slice does not include WAF or Shield, a private API and VPC, GOV.UK One Login, GOV.UK Pay, regulatory BI dashboards, or spreadsheet upload.

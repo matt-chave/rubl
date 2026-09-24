@@ -15,4 +15,4 @@ assert(keys.includes('KinesisStreamName'), 'KinesisStreamName missing')
 assert(keys.includes('SilverJobName'), 'SilverJobName missing')
 
 console.log('Step 08 automated checks passed.')
-console.log('POST a movement, wait ~2 minutes, aws s3 ls bronze/, then start the Glue silver job.')
+console.log('POST a movement in Bruno (see the README), wait about two minutes, list bronze/ on S3, then start the Glue silver job.')

@@ -1,18 +1,25 @@
 #!/usr/bin/env npx tsx
 /**
- * Tutorial runner. One step at a time.
+ * Tutorial runner. Work one step at a time (`npm run learn:status`,
+ * `npm run learn -- 01`). A step cannot run until the previous step is
+ * in learn/progress.json. AWS-backed steps fail with a clear message if
+ * you have no credentials — that is intentional. Finish 01–04b locally first.
  *
- *   npm run learn:status
- *   npm run learn -- 01
- *
- * A step cannot run until the previous step is in learn/progress.json.
- * AWS-backed steps fail with a clear message if you have no credentials —
- * that is intentional. Finish 01–04b locally first.
+ * Optional appendices (`npm run learn -- appendix-destroy-rebuild destroy`)
+ * run a check without locking the numbered path or writing progress.json.
  */
 
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
-import { STEPS, assertCanRun, markComplete, loadProgress, LEARN_ROOT } from './lib/progress'
+import {
+  STEPS,
+  APPENDICES,
+  assertCanRun,
+  markComplete,
+  loadProgress,
+  LEARN_ROOT,
+  normalizeLearnId,
+} from './lib/progress'
 
 function printStatus(): void {
   const progress = loadProgress()
@@ -23,13 +30,41 @@ function printStatus(): void {
     const aws = step.needsAws ? ' [needs AWS]' : ' [local]'
     console.log(`  ${step.id}  ${done.padEnd(4)}  ${step.title}${aws}`)
   }
+  console.log('\nOptional appendices (not gated; they do not write progress.json):\n')
+  for (const appendix of APPENDICES) {
+    const aws = appendix.needsAws ? ' [needs AWS]' : ' [local]'
+    console.log(`  ${appendix.id}  ${appendix.title}${aws}`)
+  }
   console.log('\nRead learn/README.md. Run a step with: npm run learn -- 01')
+  console.log('Run an appendix check with: npm run learn -- appendix-destroy-rebuild destroy')
 }
 
-function run(id: string): void {
+function runCheck(dir: string, extraArgs: string[]): number {
+  const check = join(LEARN_ROOT, 'steps', dir, 'check.ts')
+  const result = spawnSync(process.execPath, ['--import', 'tsx', check, ...extraArgs], {
+    cwd: join(LEARN_ROOT, '..'),
+    stdio: 'inherit',
+  })
+  return result.status ?? 1
+}
+
+function run(id: string, extraArgs: string[]): void {
+  const appendix = APPENDICES.find((item) => item.id === id)
+  if (appendix) {
+    console.log(`\n=== Appendix: ${appendix.title} ===`)
+    console.log(`Guide: learn/steps/${appendix.dir}/README.md\n`)
+    const status = runCheck(appendix.dir, extraArgs)
+    if (status !== 0) {
+      process.exit(status)
+    }
+    console.log('\nAppendix check passed. learn/progress.json was not changed.')
+    return
+  }
+
   const step = STEPS.find((s) => s.id === id)
   if (!step) {
-    throw new Error(`Unknown step ${id}. Known: ${STEPS.map((s) => s.id).join(', ')}`)
+    const known = [...STEPS.map((s) => s.id), ...APPENDICES.map((a) => a.id)].join(', ')
+    throw new Error(`Unknown step ${id}. Known: ${known}`)
   }
   assertCanRun(id)
 
@@ -37,13 +72,9 @@ function run(id: string): void {
   console.log(`Guide: learn/steps/${step.dir}/README.md`)
   console.log(`Quiz:  learn/steps/${step.dir}/quiz.md (answers in quiz-answers.md)\n`)
 
-  const check = join(LEARN_ROOT, 'steps', step.dir, 'check.ts')
-  const result = spawnSync(process.execPath, ['--import', 'tsx', check], {
-    cwd: join(LEARN_ROOT, '..'),
-    stdio: 'inherit',
-  })
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1)
+  const status = runCheck(step.dir, extraArgs)
+  if (status !== 0) {
+    process.exit(status)
   }
 
   markComplete(id)
@@ -56,7 +87,7 @@ if (!arg || arg === '--status' || arg === 'status') {
   printStatus()
 } else {
   try {
-    run(arg.replace(/^step-?/i, '').padStart(2, '0'))
+    run(normalizeLearnId(arg), process.argv.slice(3))
   } catch (err) {
     console.error((err as Error).message)
     process.exit(1)

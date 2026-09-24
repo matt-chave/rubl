@@ -1,0 +1,21 @@
+---
+description: Narrative business prose for comments, learn/ docs, and Q&A
+alwaysApply: true
+---
+
+# Writing style
+
+Write code comments, `learn/` lessons, and Q&A answers as a short narrative a colleague would read in a business setting. Prefer complete sentences in paragraphs. Stay accurate; do not pad with fluff.
+
+Do not use telegram fragments, stacked one-line punch lines, or a table as the whole answer unless a table clearly helps a comparison.
+
+```
+# Avoid
+Today: one client. No operator. Cap on client_id.
+Recommended: header + grant. All three valid.
+
+# Prefer
+Today the JWT only identifies the software. Reservations and the unused-ID cap are keyed on that client, and nothing in the request identifies a waste operator.
+```
+
+Apply this going forward. Do not rewrite existing lessons unless asked.

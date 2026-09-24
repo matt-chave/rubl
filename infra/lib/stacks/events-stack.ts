@@ -74,7 +74,7 @@ export class EventsStack extends Stack {
         filterCriteria: {
           filters: [
             {
-              // Only EVENT items — CURRENT/HISTORY snapshots must not become domain events.
+              // Only EVENT items. CURRENT and HISTORY snapshots must not become domain events.
               pattern: JSON.stringify({
                 dynamodb: { NewImage: { itemType: { S: ['EVENT'] } } },
               }),

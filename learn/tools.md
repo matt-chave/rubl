@@ -43,22 +43,23 @@ Walkthrough (account vs IAM user vs `aws configure` vs `aws configure sso`): [aw
 | Tool | Why | Install |
 |---|---|---|
 | **AWS CLI v2** | Same as step 04 | Already installed if you followed [aws-dev-setup.md](aws-dev-setup.md) |
-| **jq** | Parse JSON tokens and stack outputs | `brew install jq` |
-| **curl** | Call the API (macOS has it) | `curl --version` |
+| **jq** | Parse JSON tokens and stack outputs (curl path) | `brew install jq` |
+| **[Bruno](bruno.md)** | Primary HTTP client: Cognito **Get token**, then the waste API from step 07 | [bruno.md](bruno.md) — `brew install --cask bruno` |
+| **curl** | Alternative to Bruno (macOS has it) | `curl --version` |
 
 ```bash
 export AWS_PROFILE=dwt-dev
 aws sts get-caller-identity
 ```
 
-## Strongly recommended for manual API work (step 07)
+## Strongly recommended for console look-ups (step 07+)
 
 | Tool | Why |
 |---|---|
-| **[Bruno](bruno.md)** or **[Postman](postman.md)** | GUI to send Bearer + `x-api-key` + JSON body. Install + how-to in those files |
 | **[AWS Management Console](https://eu-west-2.console.aws.amazon.com/console/home?region=eu-west-2)** (browser) | [Cognito](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2), [DynamoDB](https://eu-west-2.console.aws.amazon.com/dynamodbv2/home?region=eu-west-2#tables), [SQS](https://eu-west-2.console.aws.amazon.com/sqs/v3/home?region=eu-west-2#/queues), [S3](https://s3.console.aws.amazon.com/s3/home?region=eu-west-2) after a write |
+| **[Postman](postman.md)** | Optional GUI if you do not want Bruno. Pick **one** of Bruno or Postman |
 
-A saved Bruno/Postman request is the same as the `curl` in step 07 — pick **one**.
+Bruno is the **primary** path from step 05. Each step README keeps **Alternative: curl**. Do not use both Bruno and Postman.
 
 ## Optional later
 
@@ -70,6 +71,4 @@ A saved Bruno/Postman request is the same as the `curl` in step 07 — pick **on
 
 ## What the automated checks use
 
-Steps 01–04: Node only.  
-Step 04b: git (and a GitHub remote).  
-Steps 05–09: AWS CLI via the SDK/`aws` in your shell environment (`AWS_PROFILE`). If `aws sts get-caller-identity` fails, those steps stop and tell you.
+Steps 01–04 use Node only. Step 04b also needs git and a GitHub remote. Steps 05–09 call AWS through the CLI in your shell (`AWS_PROFILE`). If `aws sts get-caller-identity` fails, those steps stop and tell you.

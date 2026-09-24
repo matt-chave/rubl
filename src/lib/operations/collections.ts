@@ -10,6 +10,7 @@
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 import type { HandlerResult } from '../http'
 import { pathParam, validationEnvelope } from '../http'
+import { callerAudit } from '../identity'
 import { getCurrent, movementPk, newEvent, reviseAggregate } from '../ledger'
 import {
   assertCollectionOpen,
@@ -63,6 +64,7 @@ export async function recordCollection(
     apiCode: String(body.apiCode),
     payload: { movementId, collectionType: expected, ...body },
     occurredAt: String(body.actualDateTimeCollected ?? now),
+    ...(await callerAudit(event)),
   })
   await reviseAggregate(previous, next, domainEvent)
 
@@ -125,6 +127,7 @@ export async function updateCollection(
     publicId: movementId,
     apiCode: String(body.apiCode),
     payload: { movementId, ...body },
+    ...(await callerAudit(event)),
   })
   await reviseAggregate(previous, next, domainEvent)
 

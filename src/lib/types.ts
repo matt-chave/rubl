@@ -37,6 +37,10 @@ export interface MovementEventEnvelope {
   apiCode: string
   /** Accepted API body. Object on the ledger, the bus, and bronze JSON. */
   payload: Record<string, unknown>
+  /** Waste operator resolved from the API key. Recording, not a pairing grant. */
+  operatorId?: string
+  /** Cognito app client that submitted. Recording, not authorising. */
+  softwareApplicationId?: string
 }
 
 export type EntityType = 'MOVEMENT' | 'DELIVERY' | 'RECEIPT' | 'LEGACY_RECEIPT'
@@ -53,7 +57,26 @@ export interface ValidationIssue {
     | 'InvalidValue'
     | 'OutOfRange'
     | 'BusinessRuleViolation'
+    | 'IdNotReserved'
   message: string
+}
+
+export type ReservationKind = 'MOVEMENT' | 'DELIVERY'
+export type ReservationStatus = 'RESERVED' | 'CONSUMED'
+
+export interface ReservationItem {
+  PK: string
+  kind: ReservationKind
+  status: ReservationStatus
+  /** Operator that owns the unused ID and the circulation cap. */
+  ownerOperatorId: string
+  /** Software that reserved the ID. Audit only; claim matches the operator. */
+  reservedByClientId: string
+  expiresAt: string
+  reservedAt: string
+  ttl?: number
+  gsi1pk?: string
+  gsi1sk?: string
 }
 
 export interface CurrentRecord {
@@ -96,9 +119,13 @@ export interface EventRecord {
   apiCode: string
   payload: Record<string, unknown>
   gsi1pk: string
+  /** Waste operator resolved from the API key. */
+  operatorId?: string
+  /** Cognito app client that submitted. Recording, not authorising. */
+  softwareApplicationId?: string
 }
 
-/** Lifecycle writes billed once. Keep in sync with CHARGEABLE in charging-stack.ts. */
+/** Lifecycle writes billed once. Keep this list in sync with CHARGEABLE in charging-stack.ts. */
 export const CHARGEABLE_EVENT_TYPES: ReadonlySet<EventType> = new Set([
   'MOVEMENT_CREATED',
   'WASTE_COLLECTED',

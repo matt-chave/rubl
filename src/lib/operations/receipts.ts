@@ -20,6 +20,7 @@ import {
   writeNewAggregate,
 } from '../ledger'
 import { NotFoundError } from '../errors'
+import { callerAudit, type CallerAudit } from '../identity'
 import {
   assertNotDeleted,
   rejectCreateDeleteFlag,
@@ -35,6 +36,7 @@ async function recordAgainstDelivery(
   warnings: ReturnType<typeof validateOperation>['warnings'],
   eventType: 'WASTE_RECEIVED' | 'RECEIPT_UPDATED',
   statusCode: number,
+  audit: CallerAudit,
 ): Promise<HandlerResult> {
   const previous = requireDelivery(await getCurrent(deliveryPk(deliveryId)))
   if (eventType === 'WASTE_RECEIVED') {
@@ -59,6 +61,7 @@ async function recordAgainstDelivery(
     apiCode: String(body.apiCode),
     payload: { deliveryId, ...body },
     occurredAt: String(body.dateTimeReceived ?? now),
+    ...audit,
   })
   await reviseAggregate(previous, next, domainEvent)
   return { statusCode, body: validationEnvelope(warnings) }
@@ -70,7 +73,14 @@ export async function recordReceipt(
 ): Promise<HandlerResult> {
   const deliveryId = pathParam(event, 'deliveryId')
   const { warnings } = validateOperation('recordReceipt', body)
-  return recordAgainstDelivery(deliveryId, body, warnings, 'WASTE_RECEIVED', 201)
+  return recordAgainstDelivery(
+    deliveryId,
+    body,
+    warnings,
+    'WASTE_RECEIVED',
+    201,
+    await callerAudit(event),
+  )
 }
 
 export async function updateReceipt(
@@ -79,11 +89,18 @@ export async function updateReceipt(
 ): Promise<HandlerResult> {
   const deliveryId = pathParam(event, 'deliveryId')
   const { warnings } = validateOperation('updateReceipt', body)
-  return recordAgainstDelivery(deliveryId, body, warnings, 'RECEIPT_UPDATED', 200)
+  return recordAgainstDelivery(
+    deliveryId,
+    body,
+    warnings,
+    'RECEIPT_UPDATED',
+    200,
+    await callerAudit(event),
+  )
 }
 
 export async function recordReceiptWithoutDelivery(
-  _event: APIGatewayProxyEvent,
+  event: APIGatewayProxyEvent,
   body: Record<string, unknown>,
 ): Promise<HandlerResult> {
   const { warnings } = validateOperation('recordReceiptWithoutDelivery', body)
@@ -109,15 +126,16 @@ export async function recordReceiptWithoutDelivery(
     updatedAt: now,
     gsi1pk: `ID#${deliveryId}`,
   }
-  const event = newEvent({
+  const domainEvent = newEvent({
     pk: current.PK,
     eventType: 'RECEIPT_WITHOUT_DELIVERY',
     publicId: deliveryId,
     apiCode: String(body.apiCode),
     payload: { deliveryId, ...body },
     occurredAt: String(body.dateTimeReceived ?? now),
+    ...(await callerAudit(event)),
   })
-  await writeNewAggregate(current, event)
+  await writeNewAggregate(current, domainEvent)
   return {
     statusCode: 201,
     body: { deliveryId, ...validationEnvelope(warnings) },
@@ -125,7 +143,7 @@ export async function recordReceiptWithoutDelivery(
 }
 
 export async function createReceiptMovementLegacy(
-  _event: APIGatewayProxyEvent,
+  event: APIGatewayProxyEvent,
   body: Record<string, unknown>,
 ): Promise<HandlerResult> {
   const { warnings } = validateOperation('createReceiptMovementLegacy', body)
@@ -153,15 +171,16 @@ export async function createReceiptMovementLegacy(
     wasteTrackingId,
     gsi1pk: `ID#${wasteTrackingId}`,
   }
-  const event = newEvent({
+  const domainEvent = newEvent({
     pk: current.PK,
     eventType: 'LEGACY_RECEIPT_CREATED',
     publicId: wasteTrackingId,
     apiCode: String(body.apiCode),
     payload: { wasteTrackingId, ...body },
     occurredAt: String(body.dateTimeReceived ?? now),
+    ...(await callerAudit(event)),
   })
-  await writeNewAggregate(current, event)
+  await writeNewAggregate(current, domainEvent)
   return {
     statusCode: 201,
     body: { wasteTrackingId, ...validationEnvelope(warnings) },
@@ -194,6 +213,7 @@ export async function updateReceiptMovementLegacy(
     publicId: wasteTrackingId,
     apiCode: String(body.apiCode),
     payload: { wasteTrackingId, ...body },
+    ...(await callerAudit(event)),
   })
   await reviseAggregate(previous, next, domainEvent)
   return { statusCode: 200, body: validationEnvelope(warnings) }

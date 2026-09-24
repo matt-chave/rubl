@@ -1,8 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
-    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "declaration": true,
     "strict": true,
     "noImplicitAny": true,
@@ -18,9 +20,26 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
     "outDir": "dist",
-    "typeRoots": ["./node_modules/@types"]
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["node"]
   },
-  "include": ["infra/**/*.ts", "src/**/*.ts", "test/**/*.ts"],
-  "exclude": ["cdk.out", "node_modules", "dist"]
+  "include": [
+    "infra/**/*.ts",
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "learn/**/*.ts",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "apps/dwt-operator-ui/src/**/*.ts",
+    "apps/dwt-operator-ui/src/**/*.tsx",
+    "apps/dwt-onboarding-ui/src/**/*.ts",
+    "apps/dwt-onboarding-ui/src/**/*.tsx",
+    "apps/dwt-widget-demo/src/**/*.ts",
+    "apps/dwt-widget-demo/src/**/*.tsx"
+  ],
+  "exclude": ["cdk.out", "node_modules", "dist", "**/dist/**", "**/dist-types/**"]
 }

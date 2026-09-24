@@ -16,7 +16,7 @@
  * where DynamoDB succeeds and the bus fails.
  */
 
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+import { ConditionalCheckFailedException, DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import {
   DynamoDBDocumentClient,
   GetCommand,
@@ -24,8 +24,17 @@ import {
   QueryCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
+import { ConflictError } from './errors'
 import { mintPublicId, mintWasteTrackingId } from './ids'
-import type { CurrentRecord, EventRecord, EventType, ItemType } from './types'
+import { assertClaimable, ownerReservedGsiPk, reservationPk } from './reservations'
+import type {
+  CurrentRecord,
+  EventRecord,
+  EventType,
+  ItemType,
+  ReservationItem,
+  ReservationKind,
+} from './types'
 
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
@@ -39,6 +48,14 @@ export function tables() {
     throw new Error('MOVEMENTS_TABLE, HISTORY_TABLE and SEQUENCE_TABLE must be set')
   }
   return { movements, history, sequences }
+}
+
+export function reservationsTableName(): string {
+  const name = process.env.RESERVATIONS_TABLE
+  if (!name) {
+    throw new Error('RESERVATIONS_TABLE must be set')
+  }
+  return name
 }
 
 export function movementPk(movementId: string): string {
@@ -78,6 +95,83 @@ export async function mintDeliveryId(): Promise<string> {
 
 export async function mintLegacyId(): Promise<string> {
   return mintWasteTrackingId(await nextSequence('LEGACY'))
+}
+
+export async function putReservation(item: ReservationItem): Promise<void> {
+  await client.send(
+    new PutCommand({
+      TableName: reservationsTableName(),
+      Item: item,
+      ConditionExpression: 'attribute_not_exists(PK)',
+    }),
+  )
+}
+
+export async function countInCirculation(ownerOperatorId: string, now: Date = new Date()): Promise<number> {
+  const nowIso = now.toISOString()
+  let exclusiveStartKey: Record<string, unknown> | undefined
+  let count = 0
+  do {
+    const result = await client.send(
+      new QueryCommand({
+        TableName: reservationsTableName(),
+        IndexName: 'gsi1',
+        KeyConditionExpression: 'gsi1pk = :pk',
+        FilterExpression: 'expiresAt > :now',
+        ExpressionAttributeValues: {
+          ':pk': ownerReservedGsiPk(ownerOperatorId),
+          ':now': nowIso,
+        },
+        ExclusiveStartKey: exclusiveStartKey,
+      }),
+    )
+    count += result.Items?.length ?? 0
+    exclusiveStartKey = result.LastEvaluatedKey
+  } while (exclusiveStartKey)
+  return count
+}
+
+export async function getReservation(publicId: string): Promise<ReservationItem | undefined> {
+  const result = await client.send(
+    new GetCommand({
+      TableName: reservationsTableName(),
+      Key: { PK: reservationPk(publicId) },
+    }),
+  )
+  return result.Item as ReservationItem | undefined
+}
+
+export async function claimReservation(
+  publicId: string,
+  kind: ReservationKind,
+  ownerOperatorId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  const item = await getReservation(publicId)
+  assertClaimable(item, { kind, ownerOperatorId, now })
+  try {
+    await client.send(
+      new UpdateCommand({
+        TableName: reservationsTableName(),
+        Key: { PK: reservationPk(publicId) },
+        UpdateExpression: 'SET #s = :consumed REMOVE #ttl, gsi1pk, gsi1sk',
+        ConditionExpression: '#s = :reserved AND ownerOperatorId = :owner AND kind = :kind AND expiresAt > :now',
+        ExpressionAttributeNames: { '#s': 'status', '#ttl': 'ttl' },
+        ExpressionAttributeValues: {
+          ':consumed': 'CONSUMED',
+          ':reserved': 'RESERVED',
+          ':owner': ownerOperatorId,
+          ':kind': kind,
+          ':now': now.toISOString(),
+        },
+      }),
+    )
+  } catch (err) {
+    if (err instanceof ConditionalCheckFailedException) {
+      assertClaimable(undefined, { kind, ownerOperatorId, now })
+    }
+    throw err
+  }
 }
 
 export async function getCurrent(pk: string): Promise<CurrentRecord | undefined> {
@@ -135,6 +229,8 @@ export function newEvent(input: {
   apiCode: string
   payload: Record<string, unknown>
   occurredAt?: string
+  operatorId?: string
+  softwareApplicationId?: string
 }): EventRecord {
   const eventId = crypto.randomUUID()
   const occurredAt = input.occurredAt ?? new Date().toISOString()
@@ -149,12 +245,27 @@ export function newEvent(input: {
     apiCode: input.apiCode,
     payload: input.payload,
     gsi1pk: `ID#${input.publicId}`,
+    operatorId: input.operatorId,
+    softwareApplicationId: input.softwareApplicationId,
   }
 }
 
 export async function writeNewAggregate(current: CurrentRecord, event: EventRecord): Promise<void> {
   await appendEvent(event)
-  await putCurrent(current)
+  try {
+    await client.send(
+      new PutCommand({
+        TableName: tables().movements,
+        Item: current,
+        ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+      }),
+    )
+  } catch (err) {
+    if (err instanceof ConditionalCheckFailedException) {
+      throw new ConflictError('ALREADY_EXISTS', `Record ${current.publicId} already exists`)
+    }
+    throw err
+  }
 }
 
 export async function reviseAggregate(

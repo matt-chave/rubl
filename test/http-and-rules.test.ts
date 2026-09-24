@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ValidationError } from '../src/lib/errors'
-import { parseJsonBody, json } from '../src/lib/http'
+import { ConflictError, ValidationError } from '../src/lib/errors'
+import { parseJsonBody, json, apiHandler } from '../src/lib/http'
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 import { nextCollectionType, rejectCreateDeleteFlag } from '../src/lib/rules'
 
@@ -30,6 +30,15 @@ describe('HTTP adapter', () => {
     const res = json(201, { movementId: '25HRA0B2' })
     assert.equal(res.statusCode, 201)
     assert.equal(JSON.parse(res.body).movementId, '25HRA0B2')
+  })
+
+  it('maps ConflictError to 409', async () => {
+    const handler = apiHandler(async () => {
+      throw new ConflictError('ALREADY_EXISTS', 'Movement 26HRA0B2 already exists')
+    })
+    const res = await handler(event('{}'))
+    assert.equal(res.statusCode, 409)
+    assert.equal(JSON.parse(res.body).code, 'ALREADY_EXISTS')
   })
 })
 

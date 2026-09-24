@@ -17,6 +17,16 @@ export class ValidationError extends Error {
   }
 }
 
+export class ConflictError extends Error {
+  readonly code: 'ALREADY_EXISTS'
+
+  constructor(code: 'ALREADY_EXISTS', message: string) {
+    super(message)
+    this.name = 'ConflictError'
+    this.code = code
+  }
+}
+
 export class NotFoundError extends Error {
   readonly code:
     | 'MOVEMENT_NOT_FOUND'

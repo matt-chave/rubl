@@ -35,9 +35,9 @@ export interface ChargingStackProps extends StackProps {
   eventBus: events.IEventBus
 }
 
-// Statutory-ish *lifecycle* writes only. Updates, deletes, restores, and
-// collection/delivery/receipt revisions are not billed again. Keep in
-// sync with CHARGEABLE_EVENT_TYPES in src/lib/types.ts.
+// Statutory-ish lifecycle writes only. Updates, deletes, restores, and
+// collection, delivery, or receipt revisions are not billed again. Keep
+// this list in sync with CHARGEABLE_EVENT_TYPES in src/lib/types.ts.
 const CHARGEABLE = [
   'MOVEMENT_CREATED',
   'WASTE_COLLECTED',

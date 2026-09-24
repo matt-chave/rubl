@@ -45,45 +45,11 @@ If deploy fails with **The AWS Access Key Id needs a subscription for the servic
 
    Do not paste card numbers, OTPs, or account ids into chat. Then open [Kinesis Data streams](https://eu-west-2.console.aws.amazon.com/kinesis/home?region=eu-west-2#/streams/list) again — you want the stream **list**, not registration. When `aws cloudformation describe-stacks --stack-name DwtEvents --query Stacks[0].StackStatus --output text` is `ROLLBACK_COMPLETE`, run `npx cdk deploy DwtEvents` again.
 
-3. **POST a movement** in **this** terminal so the new Pipe / Firehose can see it. Events written before `DwtEvents` deployed will not appear in bronze (the Pipe reads the stream from `LATEST`). Same profile as step 2. Do not paste tokens or API keys into chat.
+3. **POST a movement** so the new Pipe / Firehose can see it. Events written before `DwtEvents` deployed will not appear in bronze (the Pipe reads the stream from `LATEST`). Do not paste tokens or API keys into chat.
 
-   Collect the API values (silent on success until the `echo`):
+   Reuse collection `dwt-sandbox` and environment **dev** from [step 07](../07-api-proving-path/README.md). Send **Get token** (expect **200**, `token` starts `eyJ`), then **Create movement** (expect **201** and a `movementId`). Then wait **2 minutes** for Firehose to flush bronze.
 
-```bash
-API_BASE=$(aws cloudformation describe-stacks --stack-name DwtApi \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
-SECRET_ARN=$(aws cloudformation describe-stacks --stack-name DwtApi \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiKeySecretArn'].OutputValue" --output text)
-API_KEY=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query SecretString --output text)
-TOKEN_URL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
-  --query "Stacks[0].Outputs[?OutputKey=='TokenUrl'].OutputValue" --output text)
-export CLIENT_ID=$(aws cloudformation describe-stacks --stack-name DwtAuth \
-  --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text)
-POOL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
-  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
-export CLIENT_SECRET=$(aws cognito-idp describe-user-pool-client \
-  --user-pool-id "$POOL" --client-id "$CLIENT_ID" \
-  --query 'UserPoolClient.ClientSecret' --output text)
-echo "API_BASE set: $([ -n "$API_BASE" ] && echo yes || echo NO)"
-```
-
-   Mint a JWT, then POST the fixture:
-
-```bash
-TOKEN=$(curl -sS -u "$CLIENT_ID:$CLIENT_SECRET" \
-  -d grant_type=client_credentials \
-  -d scope=dwt/movements \
-  "$TOKEN_URL" | jq -r .access_token)
-echo "TOKEN set: $([ -n "$TOKEN" ] && echo yes || echo NO)"
-
-curl -sS -D - -X POST "$API_BASE/movements" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "x-api-key: $API_KEY" \
-  -H "content-type: application/json" \
-  --data-binary @learn/fixtures/create-movement.json
-```
-
-   Expect HTTP **201** and a `movementId`. Then wait **2 minutes** for Firehose to flush bronze.
+   **401** → run **Get token** again. [curl](#alternative-curl) is the same HTTP if you prefer the terminal.
 
 4. **Look at the bus** — do **not** click **Create event bus**. CDK already made `dwt-waste-movements`. You are only checking it is there and that a rule points at Kinesis.
 
@@ -208,6 +174,42 @@ LIMIT 10;
 ```
 
    Empty result: the Glue job has not succeeded yet, or you queried before silver existed. Re-run `DESCRIBE`. Do not paste query result rows into chat (the fixture includes emails).
+
+## Alternative: curl
+
+Same **201** as Bruno step 3, no GUI. Skip if you already Sent **Create movement**. Same profile as step 2.
+
+```bash
+API_BASE=$(aws cloudformation describe-stacks --stack-name DwtApi \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
+SECRET_ARN=$(aws cloudformation describe-stacks --stack-name DwtApi \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiKeySecretArn'].OutputValue" --output text)
+API_KEY=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query SecretString --output text)
+TOKEN_URL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='TokenUrl'].OutputValue" --output text)
+export CLIENT_ID=$(aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text)
+POOL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
+export CLIENT_SECRET=$(aws cognito-idp describe-user-pool-client \
+  --user-pool-id "$POOL" --client-id "$CLIENT_ID" \
+  --query 'UserPoolClient.ClientSecret' --output text)
+echo "API_BASE set: $([ -n "$API_BASE" ] && echo yes || echo NO)"
+
+TOKEN=$(curl -sS -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -d grant_type=client_credentials \
+  -d scope=dwt/movements \
+  "$TOKEN_URL" | jq -r .access_token)
+echo "TOKEN set: $([ -n "$TOKEN" ] && echo yes || echo NO)"
+
+curl -sS -D - -X POST "$API_BASE/movements" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-api-key: $API_KEY" \
+  -H "content-type: application/json" \
+  --data-binary @learn/fixtures/create-movement.json
+```
+
+Expect HTTP **201** and a `movementId`. Then wait **2 minutes** for Firehose to flush bronze (back to step 4).
 
 ## Automated check
 

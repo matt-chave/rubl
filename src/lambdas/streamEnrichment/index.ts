@@ -41,6 +41,8 @@ function toEnvelope(record: StreamRecord): MovementEventEnvelope | undefined {
     // Keep the accepted API body as JSON. Bronze stores this object;
     // silver Parquet is a later Glue job, not a Firehose conversion.
     payload: item.payload ?? {},
+    operatorId: item.operatorId,
+    softwareApplicationId: item.softwareApplicationId,
   }
 }
 

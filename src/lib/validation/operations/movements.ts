@@ -32,4 +32,7 @@ export function validateMovementPayload(body: Record<string, unknown>, issues: V
   if (body.collectionAddressDifferentFromProducer !== true && body.collectionSite) {
     issues.push(issue('collectionSite', 'NotAllowed', 'collectionSite must not be provided unless collectionAddressDifferentFromProducer is true'))
   }
+  if (body.movementId !== undefined && (typeof body.movementId !== 'string' || body.movementId.length === 0)) {
+    issues.push(issue('movementId', 'InvalidType', 'movementId must be a non-empty string'))
+  }
 }

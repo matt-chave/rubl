@@ -7,7 +7,7 @@ import { REPO_ROOT } from '../../lib/progress'
 requireAws()
 
 section('Prior stacks still present')
-for (const name of ['DwtAuth', 'DwtLedger', 'DwtApi', 'DwtEvents', 'DwtCharging']) {
+for (const name of ['DwtAuth', 'DwtOnboarding', 'DwtLedger', 'DwtApi', 'DwtEvents', 'DwtCharging']) {
   const stacks = awsJson(['cloudformation', 'describe-stacks', '--stack-name', name]) as {
     Stacks: { StackStatus: string }[]
   }
@@ -28,4 +28,4 @@ for (const op of [
 }
 
 console.log('Step 10 automated checks passed.')
-console.log('Walk the journey manually (README). Treat prod as a checklist, not a deploy.')
+console.log('Walk the journey in Bruno (see the README). Treat prod as a checklist, not a deploy.')

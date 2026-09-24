@@ -3,15 +3,23 @@
  *
  * `cdk deploy DwtApi` creates API Gateway REST + one Lambda per OpenAPI
  * operationId. Do not click Create API in the console first. Needs DwtAuth
- * (User Pool) and DwtLedger (tables) already deployed — this stack *uses*
- * them; it does not create Cognito or DynamoDB.
+ * (User Pool), DwtOnboarding (Operators table and dwt-operators usage plan),
+ * and DwtLedger (tables) already deployed — this stack *uses* them; it does
+ * not create Cognito, the Operators table, or the usage plan.
  *
  * REST (v1), not HTTP API: usage plans and API keys exist only on REST.
- * Every route requires Cognito JWT *and* x-api-key. Lambdas validate and
- * write the ledger; they never PutEvents (the stream does that in step 08).
+ * Every route requires a Cognito JWT (approved software) *and* x-api-key
+ * (the waste operator). Lambdas validate and write the ledger; they never
+ * PutEvents (the stream does that in step 08).
  *
- * The single API key here is a sandbox shortcut (same smell as one Cognito
- * app client). Production would issue keys per vendor, not cdk-deploy them.
+ * The single API key here is one seeded sandbox operator
+ * (`dwt-operator-sandbox` → OP-SANDBOX-1). Keys from POST /operators
+ * (lesson 5b) already sit on the dwt-operators usage plan created in
+ * DwtOnboarding; this stack attaches that plan to the movements stage so
+ * those keys can call POST /movements. Software clients stay per approved
+ * product in DwtAuth (or from software-provider signup). DWT does not pair
+ * operator to software at auth time; the operator hands the key to their
+ * product themselves.
  *
  * Human UI (GOV.UK One Login) is out of scope. Stage name "prod" is the
  * API Gateway stage, not the AWS prod account.
@@ -22,6 +30,7 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
+import * as cr from 'aws-cdk-lib/custom-resources'
 import { Construct } from 'constructs'
 import { DwtLambda } from '../constructs/dwt-lambda'
 
@@ -30,6 +39,9 @@ export interface ApiStackProps extends StackProps {
   movementsTable: dynamodb.ITable
   historyTable: dynamodb.ITable
   sequenceTable: dynamodb.ITable
+  reservationsTable: dynamodb.ITable
+  operatorsTable: dynamodb.ITable
+  operatorsUsagePlan: apigateway.IUsagePlan
 }
 
 interface RouteSpec {
@@ -41,6 +53,7 @@ interface RouteSpec {
 
 // 1:1 with OpenAPI operationId and src/lambdas/<operationId>/index.ts
 const ROUTES: RouteSpec[] = [
+  { operationId: 'reserveIds', method: 'POST', path: 'id-reservations', description: 'Reserve public IDs for offline use' },
   { operationId: 'createMovement', method: 'POST', path: 'movements', description: 'Create a waste movement' },
   { operationId: 'updateMovement', method: 'PUT', path: 'movements/{movementId}', description: 'Update a waste movement' },
   { operationId: 'recordCollection', method: 'POST', path: 'movements/{movementId}/collection', description: 'Record collection' },
@@ -72,11 +85,12 @@ export class ApiStack extends Stack {
       movements: props.movementsTable,
       history: props.historyTable,
       sequences: props.sequenceTable,
+      reservations: props.reservationsTable,
     }
 
     this.api = new apigateway.RestApi(this, 'DwtApi', {
       restApiName: 'digital-waste-tracking',
-      description: 'Digital Waste Tracking API (OAuth2 + API key)',
+      description: 'Digital Waste Tracking API (software JWT + operator API key)',
       cloudWatchRole: true,
       deployOptions: {
         stageName: 'prod',
@@ -98,42 +112,95 @@ export class ApiStack extends Stack {
       identitySource: 'method.request.header.Authorization',
     })
 
-    // Sandbox: one key for the proving path. Value lives in Secrets Manager
-    // (output ApiKeySecretArn). Not the Cognito client secret.
-    const apiKeySecret = new secretsmanager.Secret(this, 'VendorApiKey', {
-      description: 'API Gateway key value for vendor software',
+    // Sandbox: one operator key for the proving path. Value lives in
+    // Secrets Manager (output ApiKeySecretArn). Not the Cognito client
+    // secret. Self-signup keys from DwtOnboarding already sit on the same
+    // dwt-operators usage plan; Lambdas resolve apiKeyId from the Operators
+    // table (or these two env vars for the sandbox key).
+    const sandboxOperatorId = 'OP-SANDBOX-1'
+    const apiKeySecret = new secretsmanager.Secret(this, 'SandboxOperatorApiKey', {
+      description: 'API Gateway key value for the sandbox waste operator',
       generateSecretString: {
         excludePunctuation: true,
         passwordLength: 32,
       },
     })
 
-    const apiKey = this.api.addApiKey('VendorKey', {
-      apiKeyName: 'dwt-vendor-key',
+    const apiKey = this.api.addApiKey('SandboxOperatorKey', {
+      apiKeyName: 'dwt-operator-sandbox',
       value: apiKeySecret.secretValue.unsafeUnwrap(),
     })
 
-    const plan = this.api.addUsagePlan('VendorPlan', {
-      name: 'dwt-vendor',
-      throttle: { rateLimit: 50, burstLimit: 100 },
-      quota: { limit: 100000, period: apigateway.Period.DAY },
+    // Associate the sandbox key with the onboarding usage plan. Creating
+    // the association in this stack (rather than calling addApiKey on the
+    // plan construct in DwtOnboarding) avoids a CloudFormation cycle.
+    new apigateway.CfnUsagePlanKey(this, 'SandboxOperatorPlanKey', {
+      keyId: apiKey.keyId,
+      keyType: 'API_KEY',
+      usagePlanId: props.operatorsUsagePlan.usagePlanId,
     })
-    plan.addApiKey(apiKey)
-    plan.addApiStage({ stage: this.api.deploymentStage })
 
-    // Spec server URL is /dwt — keep that prefix so vendor paths match OpenAPI.
+    // Attach dwt-operators to this API stage so sandbox and signup keys
+    // can call movements. updateUsagePlan lives here so Onboarding does
+    // not depend on DwtApi.
+    const stageValue = `${this.api.restApiId}:${this.api.deploymentStage.stageName}`
+    new cr.AwsCustomResource(this, 'AttachOperatorsUsagePlan', {
+      onCreate: {
+        service: 'APIGateway',
+        action: 'updateUsagePlan',
+        parameters: {
+          usagePlanId: props.operatorsUsagePlan.usagePlanId,
+          patchOperations: [
+            {
+              op: 'add',
+              path: '/apiStages',
+              value: stageValue,
+            },
+          ],
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(`attach-dwt-operators-${this.api.restApiId}`),
+      },
+      onDelete: {
+        service: 'APIGateway',
+        action: 'updateUsagePlan',
+        parameters: {
+          usagePlanId: props.operatorsUsagePlan.usagePlanId,
+          patchOperations: [
+            {
+              op: 'remove',
+              path: '/apiStages',
+              value: stageValue,
+            },
+          ],
+        },
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
+      }),
+      installLatestAwsSdk: false,
+    })
+
+    // Spec server URL is /dwt — keep that prefix so OpenAPI paths match.
     const dwt = this.api.root.addResource('dwt')
 
-    // Each method: JWT + API key, then Lambda. Handler is thin (validate → ledger).
-    // authorizationScopes forces the Cognito authorizer to accept an *access*
-    // token (client credentials). Without scopes it expects an ID token and
-    // POST /movements returns 401 Unauthorized for M2M JWTs.
+    // Each method requires a JWT and an API key, then invokes Lambda. The
+    // handler is thin: validate, then write the ledger. authorizationScopes
+    // forces the Cognito authorizer to accept an access token (client
+    // credentials). Without scopes it expects an ID token and POST /movements
+    // returns 401 Unauthorized for machine-to-machine JWTs.
     for (const route of ROUTES) {
       const fn = new DwtLambda(this, route.operationId, {
         operationId: route.operationId,
         description: route.description,
         tables,
+        extraEnv: {
+          SANDBOX_OPERATOR_ID: sandboxOperatorId,
+          SANDBOX_API_KEY_ID: apiKey.keyId,
+          OPERATORS_TABLE: props.operatorsTable.tableName,
+          ...(route.operationId === 'reserveIds' ? { ID_RESERVATION_TTL_DAYS: '30' } : {}),
+        },
       })
+      props.operatorsTable.grantReadData(fn)
 
       const resource = dwt.resourceForPath(route.path)
       resource.addMethod(route.method, new apigateway.LambdaIntegration(fn), {
@@ -146,6 +213,8 @@ export class ApiStack extends Stack {
 
     new CfnOutput(this, 'ApiBaseUrl', { value: `${this.api.url}dwt` })
     new CfnOutput(this, 'ApiKeySecretArn', { value: apiKeySecret.secretArn })
+    new CfnOutput(this, 'SandboxOperatorId', { value: sandboxOperatorId })
+    new CfnOutput(this, 'SandboxApiKeyId', { value: apiKey.keyId })
     new CfnOutput(this, 'ApiId', { value: this.api.restApiId })
   }
 }

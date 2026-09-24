@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts infra/bin/app.ts",
+  "app": "npx ts-node --project tsconfig.cdk.json --prefer-ts-exts infra/bin/app.ts",
   "watch": {
     "include": ["infra/**", "src/**", "openapi/**", "data/**"],
     "exclude": ["README.md", "cdk*.json", "**/*.d.ts", "node_modules", "test"]

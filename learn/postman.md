@@ -1,6 +1,6 @@
-# Postman — optional GUI for step 07
+# Postman — optional GUI (Bruno is primary)
 
-[Postman](https://www.postman.com/) is a desktop (or browser) HTTP client. It does the same job as the `curl` in [step 07](steps/07-api-proving-path/README.md): JWT + `x-api-key` + JSON body. It is **not** required for `npm run learn -- 07`. Pick Postman **or** [Bruno](bruno.md), not both.
+[Postman](https://www.postman.com/) is a desktop (or browser) HTTP client. It does the same job as [Bruno](bruno.md): a JWT, an `x-api-key`, and a JSON body. The tutorial path is **Bruno first** ([step 05](steps/05-auth-stack/README.md) Get token, [step 07](steps/07-api-proving-path/README.md) Create movement). Use this file only if you prefer Postman. It is **not** required for `npm run learn -- 07`. Pick Postman **or** Bruno, not both.
 
 Do not paste client secrets, API keys, or tokens into chat. Do not tick **Share** on a collection that contains secrets.
 
@@ -28,9 +28,9 @@ Values come from step 07 collect-outputs / Cognito. Paste from your password man
    |---|---|
    | `apiBase` | `ApiBaseUrl` (ends `/dwt`) |
    | `tokenUrl` | `DwtAuth` `TokenUrl` (`…/oauth2/token`) |
-   | `clientId` | Cognito app client id |
+   | `clientId` | Cognito app client id (approved software) |
    | `clientSecret` | Cognito app client secret (mark **secret**) |
-   | `apiKey` | Secrets Manager API key (mark **secret**) |
+   | `apiKey` | Operator API key from Secrets Manager (`dwt-operator-sandbox`; mark **secret**) |
    | `token` | leave empty — filled after Get token |
 
 3. Select `dwt-dev` in the environment picker (top right).
@@ -85,6 +85,6 @@ Lesson 05: client credentials, not `/movements`.
 ## If it fails
 
 - **401** on create: run **Get token** again (`token` expires). Confirm `DwtApi` was deployed with `authorizationScopes` (see step 07).
-- **403**: empty or wrong `apiKey` (not the Cognito secret).
+- **403**: empty or wrong operator `apiKey` (not the Cognito secret).
 - Empty `apiBase`: must include `/prod/dwt`.
 - Postman **OAuth 2.0** helper can replace Get token later (grant type **Client credentials**, Access Token URL `{{tokenUrl}}`, scope `dwt/movements`). The two-request version above matches the curl exactly.

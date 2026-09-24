@@ -13,7 +13,9 @@
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 import type { HandlerResult } from '../http'
 import { pathParam, validationEnvelope } from '../http'
+import { ConflictError } from '../errors'
 import {
+  claimReservation,
   deliveryPk,
   getCurrent,
   mintDeliveryId,
@@ -22,10 +24,13 @@ import {
   reviseAggregate,
   writeNewAggregate,
 } from '../ledger'
+import { callerAudit, type CallerAudit } from '../identity'
+import { reservedDeliveryIdToClaim } from '../reservations'
 import {
   assertCanSoftDeleteDelivery,
   assertMovementDeliverable,
   requireDelivery,
+  requireMovement,
 } from '../rules'
 import { rejectCreateDeleteFlag } from '../rules'
 import type { CurrentRecord } from '../types'
@@ -40,13 +45,9 @@ interface DeliveryResult {
 async function loadMovements(ids: string[]): Promise<Map<string, CurrentRecord>> {
   const found = new Map<string, CurrentRecord>()
   for (const id of ids) {
-    const current = await getCurrent(movementPk(id))
-    if (!current) {
-      assertMovementDeliverable(current, id)
-    } else {
-      assertMovementDeliverable(current, id)
-      found.set(id, current)
-    }
+    const current = requireMovement(await getCurrent(movementPk(id)))
+    assertMovementDeliverable(current, id)
+    found.set(id, current)
   }
   return found
 }
@@ -56,6 +57,7 @@ async function persistDelivery(opts: {
   movementIds: string[]
   wasteType: 'HAZARDOUS' | 'NON_HAZARDOUS'
   body: Record<string, unknown>
+  audit: CallerAudit
 }): Promise<void> {
   const now = new Date().toISOString()
   const current: CurrentRecord = {
@@ -85,11 +87,16 @@ async function persistDelivery(opts: {
     apiCode: String(opts.body.apiCode),
     payload: { deliveryId: opts.deliveryId, wasteType: opts.wasteType, ...opts.body, movementIds: opts.movementIds },
     occurredAt: String(opts.body.actualDateTimeDelivered ?? now),
+    ...opts.audit,
   })
   await writeNewAggregate(current, event)
 }
 
-async function markMovementsDelivered(movements: CurrentRecord[], body: Record<string, unknown>): Promise<void> {
+async function markMovementsDelivered(
+  movements: CurrentRecord[],
+  body: Record<string, unknown>,
+  audit: CallerAudit,
+): Promise<void> {
   const now = new Date().toISOString()
   for (const previous of movements) {
     const next: CurrentRecord = {
@@ -104,17 +111,19 @@ async function markMovementsDelivered(movements: CurrentRecord[], body: Record<s
       publicId: previous.publicId,
       apiCode: String(body.apiCode),
       payload: { movementId: previous.publicId, namedOnDelivery: true },
+      ...audit,
     })
     await reviseAggregate(previous, next, event)
   }
 }
 
 export async function recordDelivery(
-  _event: APIGatewayProxyEvent,
+  event: APIGatewayProxyEvent,
   body: Record<string, unknown>,
 ): Promise<HandlerResult> {
   const { warnings } = validateOperation('recordDelivery', body)
   rejectCreateDeleteFlag(body)
+  const audit = await callerAudit(event)
 
   const movementIds = (body.movementIds as string[]).map(String)
   const loaded = await loadMovements(movementIds)
@@ -132,12 +141,24 @@ export async function recordDelivery(
   const deliveries: DeliveryResult[] = []
 
   if (nonHazardous.length > 0) {
-    const deliveryId = await mintDeliveryId()
+    const reserved = reservedDeliveryIdToClaim(body.deliveryId, nonHazardous.length)
+    let deliveryId: string
+    if (reserved) {
+      const existing = await getCurrent(deliveryPk(reserved))
+      if (existing) {
+        throw new ConflictError('ALREADY_EXISTS', `Delivery ${reserved} already exists`)
+      }
+      await claimReservation(reserved, 'DELIVERY', audit.operatorId)
+      deliveryId = reserved
+    } else {
+      deliveryId = await mintDeliveryId()
+    }
     await persistDelivery({
       deliveryId,
       movementIds: nonHazardous,
       wasteType: 'NON_HAZARDOUS',
       body,
+      audit,
     })
     deliveries.push({ deliveryId, movementIds: nonHazardous, wasteType: 'NON_HAZARDOUS' })
   }
@@ -149,11 +170,12 @@ export async function recordDelivery(
       movementIds: [movementId],
       wasteType: 'HAZARDOUS',
       body,
+      audit,
     })
     deliveries.push({ deliveryId: movementId, movementIds: [movementId], wasteType: 'HAZARDOUS' })
   }
 
-  await markMovementsDelivered([...loaded.values()], body)
+  await markMovementsDelivered([...loaded.values()], body, audit)
 
   return {
     statusCode: 201,
@@ -189,6 +211,7 @@ export async function updateDelivery(
     publicId: deliveryId,
     apiCode: String(body.apiCode),
     payload: { deliveryId, isDeleted: next.isDeleted },
+    ...(await callerAudit(event)),
   })
   await reviseAggregate(previous, next, domainEvent)
 

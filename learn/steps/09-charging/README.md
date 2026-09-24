@@ -44,33 +44,11 @@ export CDK_DEFAULT_REGION=eu-west-2
 npx cdk deploy DwtCharging
 ```
 
-3. **POST a movement** in **this** terminal so the new rule can see it. Events from before `DwtCharging` deployed will not be billed (the rule was not there). Same collect + token + curl as step 08.3. Expect **201**. Do not paste tokens or API keys into chat.
+3. **POST a movement** so the new rule can see it. Events from before `DwtCharging` deployed will not be billed (the rule was not there). Do not paste tokens or API keys into chat.
 
-```bash
-API_BASE=$(aws cloudformation describe-stacks --stack-name DwtApi \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
-SECRET_ARN=$(aws cloudformation describe-stacks --stack-name DwtApi \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiKeySecretArn'].OutputValue" --output text)
-API_KEY=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query SecretString --output text)
-TOKEN_URL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
-  --query "Stacks[0].Outputs[?OutputKey=='TokenUrl'].OutputValue" --output text)
-export CLIENT_ID=$(aws cloudformation describe-stacks --stack-name DwtAuth \
-  --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text)
-POOL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
-  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
-export CLIENT_SECRET=$(aws cognito-idp describe-user-pool-client \
-  --user-pool-id "$POOL" --client-id "$CLIENT_ID" \
-  --query 'UserPoolClient.ClientSecret' --output text)
-TOKEN=$(curl -sS -u "$CLIENT_ID:$CLIENT_SECRET" \
-  -d grant_type=client_credentials \
-  -d scope=dwt/movements \
-  "$TOKEN_URL" | jq -r .access_token)
-curl -sS -D - -X POST "$API_BASE/movements" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "x-api-key: $API_KEY" \
-  -H "content-type: application/json" \
-  --data-binary @learn/fixtures/create-movement.json
-```
+   Reuse collection `dwt-sandbox` and environment **dev** from [step 07](../07-api-proving-path/README.md). Send **Get token** (expect **200**), then **Create movement** (expect **201** and a `movementId`). That `apiCode` on the fixture is the operator the charging Lambda will bill.
+
+   **401** → run **Get token** again. [curl](#alternative-curl) is the same HTTP if you prefer the terminal.
 
 4. [SQS → Queues](https://eu-west-2.console.aws.amazon.com/sqs/v3/home?region=eu-west-2#/queues) ([docs](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html)) — two queues (main + DLQ), CDK-hashed names. Open the **main** queue (not `Dlq`).
 
@@ -130,6 +108,38 @@ aws dynamodb scan --table-name "$LEDGER" --max-items 5 \
    Empty table: the worker has not written yet (wait a few seconds) or the POST was before `DwtCharging` existed — repeat step 3. Do not paste the scan into chat.
 
 6. [CloudWatch → Alarms](https://eu-west-2.console.aws.amazon.com/cloudwatch/home?region=eu-west-2#alarmsV2:) ([docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)) → charging DLQ alarm. State should be **OK** (no messages on the DLQ). You do **not** need to break charging to learn the isolation story: stopping this Lambda would still leave 201s working.
+
+## Alternative: curl
+
+Same **201** as Bruno step 3, no GUI. Skip if you already Sent **Create movement**.
+
+```bash
+API_BASE=$(aws cloudformation describe-stacks --stack-name DwtApi \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
+SECRET_ARN=$(aws cloudformation describe-stacks --stack-name DwtApi \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiKeySecretArn'].OutputValue" --output text)
+API_KEY=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query SecretString --output text)
+TOKEN_URL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='TokenUrl'].OutputValue" --output text)
+export CLIENT_ID=$(aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text)
+POOL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
+export CLIENT_SECRET=$(aws cognito-idp describe-user-pool-client \
+  --user-pool-id "$POOL" --client-id "$CLIENT_ID" \
+  --query 'UserPoolClient.ClientSecret' --output text)
+TOKEN=$(curl -sS -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -d grant_type=client_credentials \
+  -d scope=dwt/movements \
+  "$TOKEN_URL" | jq -r .access_token)
+curl -sS -D - -X POST "$API_BASE/movements" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-api-key: $API_KEY" \
+  -H "content-type: application/json" \
+  --data-binary @learn/fixtures/create-movement.json
+```
+
+Expect **201**. Then look at SQS and the operator ledger (back to step 4).
 
 ## Automated check
 

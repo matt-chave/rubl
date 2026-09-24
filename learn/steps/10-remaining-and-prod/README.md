@@ -29,7 +29,7 @@ Confirms stacks 05–09 are still complete and lists the remaining route operati
 
 ### 0. Install Bruno (first time)
 
-If Bruno is already open from [step 07](../07-api-proving-path/README.md) or [learn/bruno.md](../../bruno.md), skip to [step 0b](#0b-create-or-reuse-the-collection).
+If Bruno is already open from [step 05](../05-auth-stack/README.md), [step 07](../07-api-proving-path/README.md), or [learn/bruno.md](../../bruno.md), skip to [step 0b](#0b-create-or-reuse-the-collection).
 
 1. Download from [Bruno downloads](https://www.usebruno.com/downloads), or on macOS:
 
@@ -44,7 +44,7 @@ Docs: [Bruno documentation](https://docs.usebruno.com/), [environments](https://
 
 ### 0b. Create or reuse the collection
 
-If you already have collection `dwt-sandbox` and environment `dev`, skip to [step 0c](#0c-add-journey-variables) and only add `movementId` / `deliveryId`.
+If you already have collection `dwt-sandbox` and environment `dev` from steps 05 / 07, skip to [step 0c](#0c-add-journey-variables) and only add `movementId` / `deliveryId` if they are missing. Keep **Get token** and **Create movement**.
 
 1. **Create Collection** → name `dwt-sandbox`.
 2. Save it **outside** this git repo (or add `*.bru` secrets to `.gitignore` if you insist on saving next to the code). Do not commit secrets.
@@ -64,7 +64,7 @@ Those two `export` lines print **nothing**. That is success — they only set th
 
 “Print the next value” means: **run the `aws` command below, look at the one line the terminal writes back, copy that line into Bruno**. You do not add an extra `echo` or `print`. The command’s output *is* the value. Paste it into Bruno’s **`dev` environment** (Name / Value table) — not into chat.
 
-These are **vendor API** values (Cognito app client + the API Gateway usage-plan key). They are **not** your AWS IAM access key / secret key from `aws configure` — those stay in profile `dwt-dev` and never go into Bruno.
+These are **API** values: the Cognito app client is approved **software**; `apiKey` is the sandbox **operator** key. They are **not** your AWS IAM access key / secret key from `aws configure` — those stay in profile `dwt-dev` and never go into Bruno.
 
 Sanity check first (should write `CREATE_COMPLETE` or `UPDATE_COMPLETE`, not a secret):
 
@@ -86,7 +86,7 @@ aws cloudformation describe-stacks --stack-name DwtApi \
   --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text
 ```
 
-**`apiKey`** — first this prints an ARN (`arn:aws:secretsmanager:…`). Copy it, then run the second command with that ARN in place of `<ARN>` (quotes matter). The second line is the API key.
+**`apiKey`** — first this prints an ARN (`arn:aws:secretsmanager:…`). Copy it, then run the second command with that ARN in place of `<ARN>` (quotes matter). The second line is the **operator** API key (`dwt-operator-sandbox`). Same value in the console: [API keys](https://eu-west-2.console.aws.amazon.com/apigateway/main/api-keys?region=eu-west-2) ([usage plans](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-key-usage-plans.html)).
 
 ```bash
 aws cloudformation describe-stacks --stack-name DwtApi \
@@ -132,9 +132,9 @@ In Bruno **dev**, add these variables:
 |---|---|---|
 | `apiBase` | `DwtApi` output `ApiBaseUrl` | HTTPS prefix — must end `/prod/dwt` |
 | `tokenUrl` | `DwtAuth` output `TokenUrl` | Cognito `/oauth2/token` |
-| `clientId` | `DwtAuth` output `ClientId` | Cognito **app client** id (vendor software identity) |
+| `clientId` | `DwtAuth` output `ClientId` | Cognito **app client** id (approved software) |
 | `clientSecret` | Cognito app client **Show secret** (or the `describe-user-pool-client` command above) | Paired with `clientId` for **Get token**. Not the API key |
-| `apiKey` | [Secrets Manager](https://eu-west-2.console.aws.amazon.com/secretsmanager/listsecrets?region=eu-west-2) secret at `ApiKeySecretArn` | The `x-api-key` header (API Gateway usage plan). Not the Cognito secret, not an IAM key |
+| `apiKey` | [Secrets Manager](https://eu-west-2.console.aws.amazon.com/secretsmanager/listsecrets?region=eu-west-2) secret at `ApiKeySecretArn` | The **operator** `x-api-key` (`dwt-operator-sandbox`). Not the Cognito secret, not an IAM key |
 | `token` | leave empty | **Get token** fills this JWT |
 | `movementId` | leave empty | **Create movement** fills this |
 | `deliveryId` | leave empty | **Record delivery** fills this |
@@ -305,7 +305,7 @@ You POST the fixture to `/deliveries/{{deliveryId}}/receipt` — that is why ste
 
 Siblings you can clone: `/reference-data/hazardous-property-codes`, `disposal-or-recovery-codes`, `container-types`, `pop-names`.
 
-If a write returns **400** `validation.errors`, a required field is missing (collection `carrier` / `collectionSite`, delivery `movementIds`, receipt `receiverSite`). **401** = run **Get token** again. **403** = empty or wrong `apiKey`. **404** = `movementId` / `deliveryId` not set or typed by hand.
+If a write returns **400** `validation.errors`, a required field is missing (collection `carrier` / `collectionSite`, delivery `movementIds`, receipt `receiverSite`). **401** = run **Get token** again. **403** = empty or wrong operator `apiKey`. **404** = `movementId` / `deliveryId` not set or typed by hand.
 
 ## Alternative: curl
 
@@ -447,17 +447,23 @@ Read [learn/environments.md](../../environments.md) **prod** section again. Chec
 
 ### 10. Tear down the sandbox (when you have finished learning)
 
+The full procedure — confirm the sandbox, destroy dependents first, leave `CDKToolkit`, handle a leftover lake bucket, then recreate one stack per lesson and refresh Bruno — lives in the [destroy and rebuild appendix](../appendix-destroy-rebuild/README.md). Follow that copy so this paragraph and the Q&A do not drift.
+
+Order still matters: dependents first (`DwtApi`, `DwtCharging`, `DwtEvents`, then `DwtLedger`, then `DwtAuth`). Do not destroy `CDKToolkit`. Do not close the account or delete the [IAM](https://console.aws.amazon.com/iam/home#/users) ([IAM users](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html)) / [IAM Identity Center](https://eu-west-2.console.aws.amazon.com/singlesignon/home?region=eu-west-2#/instances) ([what Identity Center is](https://docs.aws.amazon.com/singlesignon/latest/userguide/what-is.html)) user.
+
 ```bash
 npx cdk destroy DwtApi DwtCharging DwtEvents DwtLedger DwtAuth
 ```
 
-Order matters: dependents first.
+Then deploy again in lesson order (Auth → Ledger → Api → Events → Charging), not `--all`. The appendix has the CLI commands, the CloudFormation console alternative, and the automated checks.
 
 ## Quiz
 
 [`quiz.md`](quiz.md)
 
-## After this tutorial
+## Next
+
+Offline vendors need an ID *before* DynamoDB has CURRENT: [step 11](../11-offline-ids/README.md).
 
 Keep using [learn/qa/index.md](../../qa/index.md). Next questions you ask in Cursor should land there automatically (see `.cursor/rules/tutorial-qa.mdc`).
 

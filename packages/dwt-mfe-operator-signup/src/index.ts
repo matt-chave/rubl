@@ -1,0 +1,5 @@
+export { OPERATOR_SIGNUP_TAG, registerOperatorSignupElement } from './elements'
+export { OperatorSignupForm } from './OperatorSignupForm'
+export type { FieldIssue, OperatorSignup } from './types'
+export { EMPTY_OPERATOR } from './types'
+export { assembleOperatorBody, validateOperatorSlice } from './validate'

@@ -34,7 +34,7 @@ Template for new entries:
 
 **Q:** validations.ts is quite a meaty file. Should it not be split by logical data groups and/or endpoints?
 
-**A:** Yes. Split by **shared data groups first** (weight, parties, waste item), then thin composers per endpoint family. Do not split only by endpoint or you copy `carrier` four times. Lifecycle rules stay in `rules.ts`.
+**A:** Yes. Split by shared data groups first (weight, parties, waste item), then write thin composers per endpoint family. If you split only by endpoint you copy `carrier` four times. Lifecycle rules stay in `rules.ts`.
 
 **Code:** `src/lib/validation/`
 
@@ -70,9 +70,9 @@ Template for new entries:
 
 **Q:** When would you use an AJV and why not here?
 
-**A:** Use AJV when the JSON Schema / OpenAPI request body is self-contained and you want the *running API* to reject anything the contract forbids (extra fields, wrong types, enums) without re-implementing those rules in TypeScript. You compile the schema at build or cold start; every request is a fast function call. That is the right default for a stable vendor API.
+**A:** Use AJV when the JSON Schema / OpenAPI request body is self-contained and you want the running API to reject anything the contract forbids (extra fields, wrong types, enums) without re-implementing those rules in TypeScript. You compile the schema at build or cold start; every request is a fast function call. That is the right default for a stable vendor API.
 
-Not here for three reasons: (1) `createMovementRequest.producer` `$ref`s `../event-model/schema/common/producer/producer.schema.json`, which is not in this repo, so AJV cannot resolve the spec. (2) Many waste rules need the *current DynamoDB record* (deleted? collection closed?) — JSON Schema cannot see that; `rules.ts` must stay. (3) The tutorial values readable, commented TypeScript over a compiled schema you cannot step through. AJV can be added later once the producer schema is vendored; `validateOperation` is the swap point.
+We do not use it here for three reasons. First, `createMovementRequest.producer` `$ref`s `../event-model/schema/common/producer/producer.schema.json`, which is not in this repo, so AJV cannot resolve the spec. Second, many waste rules need the current DynamoDB record (deleted? collection closed?) — JSON Schema cannot see that, so `rules.ts` must stay. Third, the tutorial values readable, commented TypeScript over a compiled schema you cannot step through. AJV can be added later once the producer schema is vendored; `validateOperation` is the swap point.
 
 **Code:** `openapi/openapi.yaml` (`producer` $ref), `src/lib/validation/`, `src/lib/rules.ts`
 
@@ -145,7 +145,7 @@ The `#` lines under them are fine (YAML comments). The `$ref` to `./event-model/
 
 **A:** `validateOperation` in `src/lib/validation/index.ts`. A write-operation such as `createMovement` calls `validateOperation('createMovement', body)` and does not import `validateMovementPayload` or `parties.ts`. The switch inside `validateOperation` routes to the right composer.
 
-That single door matters for two reasons. (1) Every endpoint speaks the same validation vocabulary (`NotProvided`, `InvalidFormat`, …) and throws `ValidationError` the same way. (2) You can later replace the switch with AJV without touching Lambdas or `src/lib/operations/*`. Lifecycle checks stay in `rules.ts` and are called separately (`rejectCreateDeleteFlag`).
+That single door matters for two reasons. Every endpoint speaks the same validation vocabulary (`NotProvided`, `InvalidFormat`, and the rest) and throws `ValidationError` the same way. You can later replace the switch with AJV without touching Lambdas or `src/lib/operations/*`. Lifecycle checks stay in `rules.ts` and are called separately (`rejectCreateDeleteFlag`).
 
 Some operations also import `movementIsHazardous` from the same file — that is a helper, not a second validator.
 
@@ -171,7 +171,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** Can you include setting up a repo so it is available for other people to work on and clone? Part of lesson 1, or a lesson on its own?
 
-**A:** Its own step, **04b**, after environments and before AWS. Step 01 stays “does the laptop run the tests.” Git/GitHub is a different skill (backup and collaboration). 04 already talks about one codebase and four environments; 04b is what makes that codebase shareable. It is still local (no AWS). The runner now requires 04b before 05.
+**A:** Its own step, **04b**, after environments and before AWS. Step 01 stays “does the laptop run the tests.” Git and GitHub are a different skill (backup and collaboration). Step 04 already talks about one codebase and four environments; 04b is what makes that codebase shareable. It is still local (no AWS). The runner now requires 04b before 05.
 
 **Code:** `learn/steps/04b-share-the-repo/README.md`
 
@@ -315,7 +315,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** For manual steps, don't I need to do all the automated checks apart from the last one?
 
-**A:** Yes. Profile, bootstrap, and `cdk deploy` are **manual** work so the console and curl have something to look at. `npm run learn -- 05` is last — it only checks that CloudFormation stack `DwtAuth` exists. Same order on later AWS steps: deploy, look, then the green tick.
+**A:** Yes. Profile, bootstrap, and `cdk deploy` are manual work so the console and Bruno (or curl) have something to look at. `npm run learn -- 05` is last — it only checks that CloudFormation stack `DwtAuth` exists. Later AWS steps use the same order: deploy, look, then the green tick.
 
 **Code:** `learn/steps/05-auth-stack/README.md`, `learn/README.md`
 
@@ -375,7 +375,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** Don't understand. What is a JWT? What is this token doing? Is it an API key?
 
-**A:** A JWT is a short-lived signed ticket (`header.payload.signature`) Cognito issues after you prove `client_id` + `client_secret`. It says *who* the vendor software is and *what* it may do (`scope: dwt/movements`) until it expires. API Gateway will check the signature locally (JWKS) — Lambdas do not call Cognito per POST. It is **not** an API key. The API key is a different string (`x-api-key`) for throttle/quota in step 07. The client secret is only used at the token URL, not on `/movements`.
+**A:** A JWT is a short-lived signed ticket (`header.payload.signature`) that Cognito issues after you prove `client_id` + `client_secret`. It says who the vendor software is and what it may do (`scope: dwt/movements`) until it expires. API Gateway checks the signature locally (JWKS); Lambdas do not call Cognito per POST. It is not an API key. The API key is a different string (`x-api-key`) used for throttle and quota in step 07. The client secret is only used at the token URL, not on `/movements`.
 
 **Code:** `learn/steps/05-auth-stack/README.md`, `learn/architecture.md`
 
@@ -579,7 +579,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** In step 6. Can you explain how I make it fail.
 
-**A:** Reuse step 5’s URL and variables, but **leave something out**. (1) Drop the `Authorization` header → 401. (2) Drop `x-api-key` → 403. (3) Keep both headers and `--data '{}'` → 400 with `validation.errors` / `NotProvided`. Do not paste tokens or API keys into chat.
+**A:** Reuse step 5’s URL and variables, but leave something out. Drop the `Authorization` header and you should get 401. Drop `x-api-key` and you should get 403. Keep both headers and send `--data '{}'` and you should get 400 with `validation.errors` / `NotProvided`. Do not paste tokens or API keys into chat.
 
 **Code:** `learn/steps/07-api-proving-path/README.md`
 
@@ -615,7 +615,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** Okay - does the parquet file with json string inside it make sense? Not sure why we'd do this.
 
-**A:** It did not — that was only a Firehose/Glue workaround. The lake is now bronze JSON (nested `payload` object) plus a later Glue job that writes silver Parquet of the same shape. `streamEnrichment` no longer stringifies `payload`.
+**A:** It did not — that was only a Firehose/Glue workaround. The lake is now bronze JSON (a nested `payload` object) plus a later Glue job that writes silver Parquet of the same shape. `streamEnrichment` no longer stringifies `payload`.
 
 **Code:** `src/lambdas/streamEnrichment/index.ts`, `infra/lib/constructs/movement-lake.ts`
 
@@ -687,7 +687,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** not sure what I'm doing for steps 4,5 and 6
 
-**A:** Look only — do not create a bus, stream, or bucket. (4) EventBridge custom bus `dwt-waste-movements` → **Rules** — one rule targeting Kinesis (`aws events list-rules`). (5) Kinesis stream `dwt-waste-movements` **Active**, 1 shard — you will not see movement JSON there. (6) S3 lake bucket from output `LakeBucketName` → `bronze/events/` — after the step 3 POST and ~2 minutes, list/download a file; `payload` must be a JSON object. Empty bronze: wait, or POST again after the stack was `CREATE_COMPLETE`.
+**A:** Look only — do not create a bus, stream, or bucket. In step 4, open the EventBridge custom bus `dwt-waste-movements` and check **Rules**; you should see one rule targeting Kinesis (`aws events list-rules`). In step 5, the Kinesis stream `dwt-waste-movements` should be **Active** with one shard; you will not see movement JSON there. In step 6, open the S3 lake bucket from output `LakeBucketName` and look under `bronze/events/`. After the step 3 POST and about two minutes, list or download a file; `payload` must be a JSON object. If bronze is empty, wait, or POST again after the stack was `CREATE_COMPLETE`.
 
 **Code:** `learn/steps/08-events-lake/README.md`
 
@@ -747,7 +747,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** Need to explain what is happening in DwtCharging and make sure the comments within it make how it works self-explanatory.
 
-**A:** `DwtCharging` is the Billing subscriber on the same bus as the lake: chargeable lifecycle types only → SQS → Lambda → operator ledger (`OPERATOR#` / `PAYMENT#`). The API never calls it; a down worker still leaves `201`. DLQ after five failures + alarm is the pager. Per-event amount is a placeholder. The £26 annual fee is the **same** ledger (different SK, onboarding then yearly) — not implemented here. Comments in [`charging-stack.ts`](../../infra/lib/stacks/charging-stack.ts) and the charging Lambda are the walkthrough.
+**A:** `DwtCharging` is the Billing subscriber on the same bus as the lake. Chargeable lifecycle types go to SQS, then a Lambda, then the operator ledger (`OPERATOR#` / `PAYMENT#`). The API never calls it, so a down worker still leaves `201`. After five failures the message lands on the DLQ and an alarm is the pager. The per-event amount is a placeholder. The £26 annual fee is the same ledger with a different SK, written at onboarding and then yearly — not implemented here. Comments in [`charging-stack.ts`](../../infra/lib/stacks/charging-stack.ts) and the charging Lambda are the walkthrough.
 
 **Code:** `infra/lib/stacks/charging-stack.ts`, `src/lambdas/charging/index.ts`, `learn/steps/09-charging/README.md`
 
@@ -759,7 +759,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** You say this is not the £26 annual subscription, that is a different Billing workflow. It would end up in the same charging schema though wouldn't it? We will need to consider waste operator onboarding at a later time. The £26 fee is incurred initially here then due annually after that.
 
-**A:** Yes — same Billing context and the same operator ledger (`PK=OPERATOR#`). It is a different *line* (`SK` like `SUBSCRIPTION#<year>`, not `PAYMENT#<eventId>`) and a different *trigger* (operator onboarded, then anniversary), not a second table. GOV.UK Pay and onboarding stay later; when they arrive they should `PutItem` this table. This slice still only writes per-event placeholder units.
+**A:** Yes — the same Billing context and the same operator ledger (`PK=OPERATOR#`). It is a different line (`SK` like `SUBSCRIPTION#<year>`, not `PAYMENT#<eventId>`) and a different trigger (operator onboarded, then anniversary), not a second table. GOV.UK Pay and onboarding stay later; when they arrive they should `PutItem` this table. This slice still only writes per-event placeholder units.
 
 **Code:** `infra/lib/stacks/charging-stack.ts`, `src/lambdas/charging/index.ts`, `learn/steps/09-charging/README.md`
 
@@ -771,7 +771,7 @@ Some operations also import `movementIsHazardous` from the same file — that is
 
 **Q:** For step 4 - what should I see? I've looked at the queues and there aren't any messages there.
 
-**A:** An empty queue is the happy path. The charging Lambda receives and deletes the SQS message in about a second, so **Send and receive messages** stays empty. Look at queue **Monitoring** (messages sent / deleted) and step 5 — a `PAYMENT#` row on the operator ledger. Available messages = 0 and a ledger row means it worked. Empty ledger as well: POST again after the stack was `CREATE_COMPLETE`.
+**A:** An empty queue is the happy path. The charging Lambda receives and deletes the SQS message in about a second, so **Send and receive messages** stays empty. Look at queue **Monitoring** (messages sent and deleted) and at step 5 — a `PAYMENT#` row on the operator ledger. Available messages at 0 plus a ledger row means it worked. If the ledger is empty as well, POST again after the stack was `CREATE_COMPLETE`.
 
 **Code:** `learn/steps/09-charging/README.md`
 
@@ -966,3 +966,353 @@ Some operations also import `movementIsHazardous` from the same file — that is
 **A:** API Gateway’s Cognito authorizer rejected the JWT. Not a missing `x-api-key` (that is 403). Re-run **Get token**, confirm `dev` is selected and `token` starts `eyJ`, header `Authorization: Bearer {{token}}`, then retry the same request (delivery/receipt/fate). Do not create a new movement. Do not paste the token into chat.
 
 **Code:** `learn/steps/10-remaining-and-prod/README.md` (step 4), `learn/steps/07-api-proving-path/README.md`
+
+---
+
+## 2026-09-22 — Which endpoints and Lambdas exist?
+
+**Step:** 10
+
+**Q:** Can you tell me what endpoints and lambdas exist. I think we have ones no longer needed.
+
+**A:** `DwtApi` wires one Lambda per OpenAPI `operationId` (`ROUTES` in `api-stack.ts` matches `src/lambdas/<id>/`). The step 10 journey uses create, collection, delivery, receipt, fate, and EWC. PUTs are corrections. Phase 1 `POST/PUT …/receive` is deprecated in the spec but still implemented so we stay 1:1 with OpenAPI. `POST /receipts` is the no-prior-delivery path. Two extra Lambdas are not HTTP: `streamEnrichment` (Events) and `charging`. There are no leftover folders. Do not delete the deprecated receive pair unless you also drop those operations from the YAML.
+
+**Code:** `infra/lib/stacks/api-stack.ts`, `src/lambdas/`
+
+---
+
+## 2026-09-22 — Keep deprecated receive Lambdas
+
+**Step:** 10
+
+**Q:** got it - let's keep them.
+
+**A:** Keep all current `ROUTES` and `src/lambdas/` folders, including the deprecated `createReceiptMovementLegacy` and `updateReceiptMovementLegacy` handlers. The edge stays 1:1 with OpenAPI. There is no delete and no CDK change.
+
+**Code:** `infra/lib/stacks/api-stack.ts`
+
+---
+
+## 2026-09-22 — Circulation cap of 50 reserved IDs
+
+**Step:** 11
+
+**Q:** Think we need to update that requirement a little. A waste operator can request id's to use offline upto a max of 50. This means they can only ever have a max of 50 in circulation at any one time. If they ask for more than 50 they only get 50. If they ask for 50 and they have 10 currently left in circulation from a previous ask then they get 40.
+
+**A:** The cap is 50 unused IDs per caller (reserved, not yet claimed or expired), not 50 per request. `allocateCirculation` fills movements first, then deliveries, up to `50 − inCirculation`. Asking for 80 yields at most 50; asking for 50 with 10 still unused yields 40. The count comes from GSI `OWNER#{clientId}#RESERVED`. The response includes `inCirculation`. Claimed or expired IDs free a slot. Public strings are still never recycled.
+
+**Code:** `src/lib/reservations.ts`, `src/lib/operations/reservations.ts`, `infra/lib/stacks/ledger-stack.ts`
+
+---
+
+## 2026-09-23 — Org-wide reserve vs per-driver IDs
+
+**Step:** 11
+
+**Q:** Will the offline delivery thing work if its an org request? i.e. anyjunk have 5 drivers and request 50 id's. How do the drivers know which one to use? Won't the drivers have to request the ids?
+
+**A:** Yes, it works as an **OAuth-client pool**, not as per-driver assignment. `POST /id-reservations` owns IDs by the Cognito `client_id` on the JWT (`callerClientId` → `ownerClientId`), not by organisation and not by driver. AnyJunk’s operator app (one machine-to-machine client) can reserve up to **50 unused** Movement + Delivery IDs at once; asking for 50 with 10 still unused yields 40. The response is two arrays (`movementIds`, `deliveryIds`) plus `expiresAt` and `inCirculation`. DWT does **not** pick which driver gets which string — the vendor app must hand them out (job sheet, device cache, print). Drivers do not each call DWT unless the product gives each driver or device its own Cognito client; then the cap is 50 unused **per client**. Claim is the same client sending `movementId` on `POST /movements` or `deliveryId` on `POST /deliveries` (non-hazardous only). If two drivers write the same unused ID offline, the first claim wins (`CONSUMED`); the second is `400 IdNotReserved` (already consumed) or `409 ALREADY_EXISTS` if CURRENT already exists.
+
+**Code:** `src/lib/reservations.ts` (`callerClientId`, `allocateCirculation`, `assertClaimable`), `src/lib/operations/reservations.ts`, `src/lib/ledger.ts` (`countInCirculation`, `claimReservation`), `src/lib/operations/movements.ts`, `src/lib/operations/deliveries.ts`, `openapi/openapi.yaml` (`POST /id-reservations`)
+
+---
+
+## 2026-09-23 — Circulation cap, GSI tracking, and owner-only claim
+
+**Step:** 11
+
+**Q:** Can you explain how you prevent a waste operator requesting more IDs when they still have some outstanding? What mechanism are you using to keep a track of IDs? Also — an ID can only be used by the waste operator that asked for it.
+
+**A:** We do **not** refuse the whole call if any IDs remain unused. The rule is a **circulation cap**: a caller may hold at most **50 unused** Movement + Delivery IDs at once. They can request more while some are outstanding; the grant is `min(asked, 50 − inCirculation)`. Asking for 50 with 10 still unused yields **40**, not a 400. Asking for 10 when 50 are already unused yields **empty arrays** and `inCirculation: 50`.
+
+Tracking lives on the **`IdReservations`** table ([DynamoDB tables](https://eu-west-2.console.aws.amazon.com/dynamodbv2/home?region=eu-west-2#tables) → `DwtLedger-IdReservations…`), not the movements ledger. Each grant writes one row: PK `ID#<publicId>`, `status` `RESERVED`, `ownerClientId` (Cognito `client_id` from the JWT), `expiresAt`, DynamoDB `ttl`, and GSI keys `gsi1pk = OWNER#{clientId}#RESERVED` / `gsi1sk = publicId`. `countInCirculation` queries that GSI and counts rows whose `expiresAt` is still in the future. `allocateCirculation` then sizes the next batch (movements first, then deliveries). Claim (`POST /movements` / `POST /deliveries`) calls `assertClaimable`: same `ownerClientId`, still `RESERVED`, matching kind, not expired. On success the row becomes `CONSUMED` and the GSI keys plus TTL are removed, so it drops out of the unused count. Unused rows expire after 30 days (TTL deletes the row). Expired IDs leave circulation so the operator can reserve again, but the public string is **never recycled** — the sequence number was already consumed.
+
+**Code:** `src/lib/reservations.ts` (`allocateCirculation`, `callerClientId`, `assertClaimable`), `src/lib/operations/reservations.ts`, `src/lib/ledger.ts` (`countInCirculation`, `claimReservation`), `src/lib/types.ts` (`ReservationItem`), `infra/lib/stacks/ledger-stack.ts`, `openapi/openapi.yaml` (`POST /id-reservations`), `test/reservations.test.ts`
+
+---
+
+## 2026-09-23 — Is client_id the waste operator or the software vendor?
+
+**Step:** 05, 11
+
+**Q:** I'm a bit confused on the client-id. Is that the waste operator or the software vendor?
+
+**A:** It is the **OAuth application** — typically the **software vendor** (or an operator’s own back-office app if they write their own integration). It is **not** a named waste operator (carrier/broker) identity and **not** a driver.
+
+Auth is a [Cognito User Pool](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) (`dwt-vendor-m2m`) with a **machine-to-machine / client_credentials** app client (`dwt-vendor-software`). There are no human Cognito users. `callerClientId` reads JWT `claims.client_id` (then `sub`, then `authorizer.client_id`) and stores that as `ownerClientId`. The 50 unused-ID cap is per that client. There is **no** Defra org-id (or similar) claim mapped in this code.
+
+This tutorial issues **one** app client and **one** API key — a **sandbox shortcut**. Production would issue credentials **per vendor** (the software that calls the API), not per driver, usually via `CreateUserPoolClient` rather than another `cdk deploy DwtAuth`.
+
+If one SaaS vendor serves many waste operators with **one** shared Cognito client, those operators share one reservation pool and one 50-cap. Per-operator isolation would need a client (or another owner key) per operator.
+
+**Code:** `infra/lib/stacks/auth-stack.ts`, `src/lib/reservations.ts` (`callerClientId`), `src/lib/operations/reservations.ts` (`ownerClientId`), `infra/lib/stacks/api-stack.ts` (sandbox key comment), `learn/steps/05-auth-stack/README.md`
+
+---
+
+## 2026-09-23 — Approved software and authorised operator
+
+**Step:** 05, 11
+
+**Q:** That's not going to work. The software needs to be approved and the waste operator needs to be authorised too. This means that we will only receive submissions from authorised waste operators using authorised software. What changes will we need to make to support this?
+
+**A:** Today we only prove that the caller is approved software. The sandbox uses one [Cognito](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) user pool (`dwt-vendor-m2m`) with a single machine-to-machine app client (`dwt-vendor-software`), plus one [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/apis?region=eu-west-2) key (`dwt-vendor-key`). The JWT `client_id` is treated as the software identity. Reservations and the fifty unused-ID cap are keyed on that client as `ownerClientId`. There is no operator identity in auth. Fields such as `carrier.organisationName` and `registrationNumber` sit in the payload and are not used as authorisation.
+
+The recommended model treats the two approvals as independent and then requires a pairing. Software remains the Cognito app client: the JWT `client_id` is the accredited `softwareApplicationId`. A client exists only after the software is approved ([app clients](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)). You can revoke a product globally by disabling the client so no new tokens are issued, and/or by setting the registry status to `SUSPENDED` so Lambdas reject even unexpired JWTs.
+
+The operator is a first-class `operatorId` (the carrier, broker, or organisation), not a second Cognito client. The caller sends it on every write as the header `X-Operator-Id`. That is cleaner than putting it in movement or delivery bodies, and it works on `POST /id-reservations` as well.
+
+Both identities must be valid, and they must be paired. A local Registries table holds a slim copy on the Movements side so we do not HTTP-call Organisations or Cognito on every POST. It stores a `SOFTWARE#{clientId}` record with status `APPROVED` or `SUSPENDED`, an `OPERATOR#{operatorId}` record with status `AUTHORISED` or `SUSPENDED`, and a grant item (`PK SOFTWARE#{clientId}` / `SK OPERATOR#{operatorId}`) that records that this software may act for that operator.
+
+Reservation ownership and the fifty-ID cap then become operator-scoped. The GSI key changes from `OWNER#{clientId}#RESERVED` to `OWNER#{operatorId}#RESERVED`. `ReservationItem` keeps `reservedByClientId` for audit and adds `ownerOperatorId`. Claim matches the operator, not the vendor. Software is re-checked at claim time (still approved, still granted). IDs belong to the operator, so they can be claimed by a different approved product that also has a grant.
+
+The edge stays JWT plus API key. [API Gateway REST](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-control-access-to-api.html) still checks the access token locally ([JWKS](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html)) and still requires `x-api-key` for usage plans. Operator and grant checks happen in Lambda, not as a third gateway scheme. Do not put `operatorId` on the API key.
+
+In this repo the contract would keep `oauth2` and `apiKey` in `openapi/openapi.yaml` and add a required `X-Operator-Id` header on reserve and all writes. A shared helper such as `assertAuthorisedPair(clientId, operatorId)` would live in something like `src/lib/authorisation.ts`. The auth stack stays one pool, client-credentials, and scope `dwt/movements`; we do not add an operator app client. Production would still create a user-pool client per approved product rather than running `cdk deploy DwtAuth` for each one. The API stack keeps the Cognito authorizer and `apiKeyRequired: true`, and would pass the registries table into the Lambdas. CORS already allows extra headers.
+
+On the ledger, add a Registries table on `DwtLedger` (or extra item types on one table). Seed the sandbox with one `APPROVED` software matching the existing client, one `AUTHORISED` operator (`OP-SANDBOX-1`), and one grant. Change how `IdReservations` uses its GSI, and update `ownerReservedGsiPk`, `countInCirculation`, `assertClaimable`, and `claimReservation` so they key on the operator. Every mutating handler — reserve, create, update, collection, delivery, receipt, including the deprecated receive path — would call `assertAuthorisedPair` before writing. Claim paths pass `ownerOperatorId` rather than `callerClientId`. Reads such as reference data and fate-of-waste can stay software-only for the tutorial.
+
+The workshop would still use one of each (one client, one key, one seeded operator and grant). Production would issue a client and API key per approved software, and fill operators and grants from an Organisations feed as a local snapshot, not a sync call per POST. Charging’s `PK=OPERATOR#` can later use the same `operatorId`; that is not required for this change.
+
+Leave alone unless a later step forces it: the EVENT/CURRENT ledger, sqids and `nextSequence`, expire-and-never-reuse, no human Cognito users, and no IdP round-trip per movement.
+
+We rejected a Cognito client per operator (or per software×operator pair) because it conflates the two approvals, would explode to around 500,000 clients, and breaks one SaaS product serving many operators. We rejected putting `operatorId` only in the JSON body with a software JWT, because any approved product could then impersonate any operator; there would be no grant.
+
+**Code:** `infra/lib/stacks/auth-stack.ts`, `infra/lib/stacks/api-stack.ts`, `infra/lib/stacks/ledger-stack.ts`, `src/lib/reservations.ts` (`callerClientId`, `ownerReservedGsiPk`, `assertClaimable`), `src/lib/operations/reservations.ts`, `src/lib/operations/movements.ts`, `src/lib/operations/deliveries.ts`, `src/lib/ledger.ts`, `src/lib/types.ts` (`ReservationItem`), `openapi/openapi.yaml` (`securitySchemes`), `learn/steps/05-auth-stack/README.md`, `learn/steps/11-offline-ids/README.md`, `learn/architecture.md`
+
+---
+
+## 2026-09-23 — Dual auth restated in simpler language
+
+**Step:** 05, 11
+
+**Q:** I don’t understand the previous answer about approved software and authorised waste operator. Please re-explain from scratch using simpler narrative business language.
+
+**A:** “Who is allowed to submit” is two separate questions, not one. The first is whether the software product calling the API is an approved product. The second is whether the waste operator that product is acting for is an authorised operator. We should accept a submission only when both are true and when that software is allowed to act for that operator. Today we only answer the first question.
+
+In this tutorial there is a single [Cognito](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) machine-to-machine app client (`dwt-vendor-software`) and a single [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/apis?region=eu-west-2) key (`dwt-vendor-key`). When a request arrives, we read `client_id` from the JWT and treat that as the software. Reserved IDs and the rule that a caller may hold at most fifty unused IDs are both keyed on that client. Nothing in that token identifies a waste operator. Organisation names and registration numbers in the JSON body are just data on the movement; they are not a login and they are not a permission check.
+
+The design we recommend keeps the JWT as the software identity and adds the operator as a second, independent input. On every write — including reserving IDs — the caller also sends a header, `X-Operator-Id`, saying which operator they claim to represent. We then look that pair up in a local Registries table (a copy we keep next to Movements, not a live call out to Organisations or Cognito on every POST). That table has three kinds of row: whether this software is `APPROVED` or `SUSPENDED`; whether this operator is `AUTHORISED` or `SUSPENDED`; and a grant that records that this software may act for this operator. All three must be valid. If the software is suspended, if the operator is suspended, or if there is no grant between them, the write is refused.
+
+Once IDs are reserved under an operator, they belong to that operator. The fifty-ID cap is counted per operator, not per software vendor. A different approved product that also has a grant for the same operator can claim those IDs. We still check the software again at claim time.
+
+We would not change how the front door works. [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/apis?region=eu-west-2) would still verify the JWT and still require the API key. The operator and grant checks would run in the Lambda, after the request is already authenticated as coming from some piece of software. We would not create a Cognito app client for each operator, and we would not put the operator id only inside the JSON body.
+
+A client per operator is the wrong split: it turns two approvals into one credential, it would mean hundreds of thousands of Cognito clients, and it breaks the usual case of one SaaS product used by many operators. Putting the operator id only in the body, with only a software JWT, is also the wrong split: any approved product could then name any operator and we would have no grant to stop them.
+
+In the workshop we would still seed one approved product, one authorised operator, and one grant. In production we would issue a Cognito client and an API key per approved software product, and we would fill operators and grants from an Organisations feed as a local snapshot.
+
+**Code:** `learn/qa/index.md` (this entry and **2026-09-23 — Approved software and authorised operator**), `infra/lib/stacks/auth-stack.ts`, `src/lib/reservations.ts` (`callerClientId`), `learn/steps/05-auth-stack/README.md`, `learn/steps/11-offline-ids/README.md`
+
+---
+
+## 2026-09-23 — DWT must authenticate the waste operator
+
+**Step:** 05, 11
+
+**Q:** Let's go back to the authentication of both waste operator and software provider. It is the waste operator who must authenticate more than the software provider. The legislation on DWT is all about regulating waste operators so need to be absolutely sure they are who they say they are - it can't rely on third party software to do this authorisation and pass onto us - we need to do it. What is the best way of doing this?
+
+**A:** The right design is that **DWT (or an identity provider DWT trusts) authenticates the waste operator**. Software remains an accredited channel. It must not be the party that names the operator and asks us to believe it.
+
+Today this repo only authenticates software. [`DwtAuth`](../../infra/lib/stacks/auth-stack.ts) is a [Cognito](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) user pool (`dwt-vendor-m2m`) with no human users and one machine-to-machine app client (`dwt-vendor-software`) using the client-credentials grant. [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/apis?region=eu-west-2) checks that JWT locally ([JWKS](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html)) and also requires `x-api-key`. [`callerClientId`](../../src/lib/reservations.ts) reads `client_id` from that token and step 11 keys reserved IDs and the fifty unused-ID cap on it. `learn/architecture.md` and the step 05 README both say human login — [GOV.UK One Login](https://docs.sign-in.service.gov.uk/) — is out of scope for this slice. Organisation names in the JSON body are data, not a login.
+
+The earlier recommendation (JWT as software, header `X-Operator-Id` as the operator, a grant row in a local Registries table) is **not enough as the primary proof of who the operator is**. A header the software sets is exactly “third party software does the authorisation and passes it on.” A grant can record that this product is allowed to *use* a given operator’s credentials. It cannot mint that operator’s identity.
+
+The recommended model keeps two approvals, but the stronger one is operator identity issued by us (or by a government IdP we trust). In production the operator (or a person acting for that legal entity) signs in with [GOV.UK One Login](https://www.gov.uk/using-your-gov-uk-one-login) / Defra Identity. The software still has its own M2M client after accreditation ([app clients](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)). Every write presents an **operator access token that DWT issued or validates**. The software may store a refresh token and replay short-lived access tokens; it cannot invent the operator claim. Two practical OAuth shapes do that: authorization code plus refresh (the operator logs in once; the product later acts while they are not at the keyboard), or token exchange / on-behalf-of (the software’s client token is exchanged against the operator’s login token for an API token that carries both identities). Either way the subject of the operator token is what we believe. A grant can still say “this accredited product may present tokens for this operator.” If the product is suspended, or there is no grant, we refuse even a valid operator token.
+
+We still reject a Cognito app client per operator as the *operator* identity. That would be hundreds of thousands of clients, it conflates software approval with operator assurance, and if the vendor holds the secret it is still the software asserting who the operator is.
+
+Interactive login is the strongest assurance and is the right path for onboarding, back-office, and reserving IDs. It is a poor fit for a driver at the kerbside or a nightly batch. The honest compromise is that the **online** acts (sign-in, grant the product, `POST /id-reservations`) happen when a back-office user or the operator can complete One Login / Cognito hosted UI. Drivers then use IDs already reserved under that operator. When the software later claims those IDs or posts the movement, it presents the operator token it was given — refreshed, not minted. The software is the channel; the IDs belong to the operator on the token, not to `client_id`.
+
+In this workshop that would mean adding Cognito **user** identities (or a second pool) with an authorization-code client so we can issue an operator token, keeping the existing M2M client as the accredited product, and reading `operatorId` from the token we issued rather than from `X-Operator-Id`. [API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-control-access-to-api.html) would still verify JWTs at the edge and still require the API key. Reservation ownership and the fifty-ID cap would key on the operator in the token (`OWNER#{operatorId}#RESERVED`), with `reservedByClientId` kept for audit. The workshop would seed one operator user and one software client; production would swap the operator issuer for One Login / Defra Identity without rewriting the ledger handlers.
+
+**Code:** `infra/lib/stacks/auth-stack.ts`, `infra/lib/stacks/api-stack.ts`, `src/lib/reservations.ts` (`callerClientId`, `ownerReservedGsiPk`, `assertClaimable`), `src/lib/operations/reservations.ts`, `learn/steps/05-auth-stack/README.md`, `learn/steps/11-offline-ids/README.md`, `learn/architecture.md`, `learn/qa/index.md` (this entry revises **2026-09-23 — Approved software and authorised operator** and **Dual auth restated in simpler language**)
+
+---
+
+## 2026-09-23 — How an online driver submission works
+
+**Step:** 05, 07, 11
+
+**Q:** Can you explain how this all works for a driver who is online making a submission through the API?
+
+**A:** The driver is almost always a user of the **vendor’s app**, not a [GOV.UK One Login](https://www.gov.uk/using-your-gov-uk-one-login) or [Cognito](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) user of DWT on every tap. Legislation is about the **legal waste operator** (the carrier or broker), not the individual at the kerb. DWT does not need to know that driver’s name unless we later add staff identity as a product feature.
+
+The operator proof happens earlier, when someone who can act for that entity — a director, a compliance manager, or another authorised person — signs in to DWT or to an identity provider DWT trusts. That login is how we become sure of the operator. During that session they delegate the accredited software. The product then holds a **refreshable operator access token that DWT issued** (or that we validate). The software may refresh that token and replay short-lived access tokens; it cannot invent the operator claim, and it must not name the operator in a header we are asked to believe.
+
+When the driver has connectivity and submits a movement, collection, or delivery, the vendor app calls the DWT API with two proofs. The first is the software proof we already have in this repo: a machine-to-machine JWT from the client-credentials grant, plus the [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/apis?region=eu-west-2) key. The second is that operator access token. DWT validates the operator token itself — issuer, signature, expiry, and subject — and attributes the write to the operator on the token. The driver never talks to Cognito or One Login at the point of submit. They are using the product that already holds the operator’s delegated token.
+
+That is the honest compromise from the earlier design. Interactive login is the strongest assurance and is the right path for onboarding, back-office work, and reserving IDs. It is a poor fit for a driver at the kerbside. So the operator authenticates and grants the product when they can complete One Login (or the workshop’s Cognito hosted UI). After that, an online driver POST is the product presenting software credentials **and** the operator token it was given — refreshed, not minted.
+
+Today this workshop does **not** do that. Step 05’s [`DwtAuth`](../../infra/lib/stacks/auth-stack.ts) is a Cognito pool (`dwt-vendor-m2m`) with no human users and one client-credentials app client (`dwt-vendor-software`). Step 07’s [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/apis?region=eu-west-2) checks that JWT locally and requires `x-api-key`. There is no operator token. Step 11 keys reserved IDs and the fifty unused-ID cap on `client_id`. Organisation names in the JSON body are data, not a login.
+
+The offline path is the same operator token, used at a different time. Someone with connectivity — typically back-office, or the start of a shift — completes operator auth and calls `POST /id-reservations`. The driver then works from those pre-assigned IDs while the radio is down. When the app later claims an ID on `POST /movements` or `POST /deliveries`, it still presents the same operator token. Online submit skips the reservation: DWT mints the ID on the write, but attribution is still the operator on the token, not the driver and not the software’s `client_id`.
+
+**Code:** `infra/lib/stacks/auth-stack.ts`, `infra/lib/stacks/api-stack.ts`, `src/lib/reservations.ts` (`callerClientId`), `learn/steps/05-auth-stack/README.md`, `learn/steps/07-api-proving-path/README.md`, `learn/steps/11-offline-ids/README.md`, `learn/architecture.md`, `learn/qa/index.md` (**2026-09-23 — DWT must authenticate the waste operator**)
+
+---
+
+## 2026-09-23 — Why not use an operator API key?
+
+**Step:** 05, 07, 11
+
+**Q:** In DWT each waste operator has its own API Key. Why wouldn't we use this?
+
+**A:** We would. An operator API key that **DWT issued** after DWT’s own onboarding is a valid primary proof of the waste operator, and for machine-to-machine submit it is a simpler fit than asking the driver to complete a login at the kerb.
+
+The earlier concern was the header `X-Operator-Id`: that is the software naming the operator and asking us to believe it. A secret we issued is a different thing. When the request arrives, [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/api-keys?region=eu-west-2) looks the `x-api-key` up in **our** store ([API keys and usage plans](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-key-usage-plans.html)). We already know which operator that key belongs to. That meets “we need to do the authorisation” better than a name the product passes through.
+
+Keep software accreditation as a **second** proof on the same request. The existing machine-to-machine JWT — [Cognito](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) client credentials, `client_id` as the accredited product ([app clients](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)) — still says which approved software is presenting the operator’s key. A typical call is `Authorization: Bearer <software JWT>` plus `x-api-key: <operator key>`. The gateway checks both. Lambda can then confirm a grant: this product may use this operator’s key. If the software is suspended, or there is no grant, refuse even a valid operator key. If the key is revoked or the usage plan is detached, refuse even a valid JWT. Usage plans already understand keys, so you can throttle or cut off one operator without rotating the software client.
+
+Do **not** use a vendor-only API key plus a software-supplied operator id. That is the model we rejected: the key then only throttles the product, and the operator name is again a header we are asked to believe.
+
+This repo does not issue operator keys today. [`api-stack.ts`](../../infra/lib/stacks/api-stack.ts) creates one key, `dwt-vendor-key`, described as a sandbox shortcut; the comments say production would issue keys **per vendor**, not per operator. [`auth-stack.ts`](../../infra/lib/stacks/auth-stack.ts) has one Cognito app client (`dwt-vendor-software`); JWT `client_id` is the software. Step 11 keys reservations and the fifty unused-ID cap on that client. Organisation names in the JSON body are data, not a login.
+
+An API key proves possession of a long-lived secret, not a fresh human login. If the vendor app stores the operator key, a compromised vendor can submit as that operator until we revoke the key. A refreshable operator access token has a similar “software holds the credential” shape; the difference is expiry and rotation. [GOV.UK One Login](https://www.gov.uk/using-your-gov-uk-one-login) (or this workshop’s Cognito hosted UI) remains the right tool for **onboarding** the operator and deciding to issue or revoke the key. That is how we become sure who they are. The key is then the day-to-day API credential, so an online driver never needs One Login at the kerb.
+
+**Code:** `infra/lib/stacks/api-stack.ts` (`dwt-vendor-key`, “per vendor”), `infra/lib/stacks/auth-stack.ts`, `src/lib/reservations.ts` (`callerClientId`), `learn/steps/05-auth-stack/README.md`, `learn/steps/07-api-proving-path/README.md`, `learn/steps/11-offline-ids/README.md`, `learn/architecture.md`, `learn/qa/index.md` (**2026-09-23 — DWT must authenticate the waste operator**)
+
+---
+
+## 2026-09-23 — Operator API key versus X-Operator-Id
+
+**Step:** 05, 07
+
+**Q:** The waste operator API key is issued as part of waste-operator onboarding. Is `X-Operator-Id` more or less secure, or stronger proof of identity, than using that API key for waste operators?
+
+**A:** The operator API key is **stronger** proof of identity than `X-Operator-Id`. They are not equivalent.
+
+`X-Operator-Id` is an asserted name. It is not a secret. Anyone who can already call the API as approved software can put any operator id in the header. We only treat that name as the operator if we also trust the software and a grant table that says this product may act for that id. That is weaker proof: it is a claim, not a credential. The earlier note still stands — a header the software sets is the software naming the operator and asking us to believe it.
+
+The operator API key is a **secret DWT issued during onboarding**, after DWT’s own identity proofing of that waste operator. Presenting it is possession of something only that operator (and whoever they gave it to) should have. When the request arrives, [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/api-keys?region=eu-west-2) looks the `x-api-key` up in our store ([API keys and usage plans](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-key-usage-plans.html)). We already know which operator that key belongs to. That is stronger proof that the caller is, or is acting with the credential of, the operator we onboarded.
+
+Neither is a fresh human login. The key can be stolen if the vendor stores it, and a compromised vendor can submit as that operator until we revoke the key. The header cannot be “stolen” in the same way because it was never a secret — it was never proof. This is the same distinction as **2026-09-23 — Why not use an operator API key?**: a secret we issued is a valid primary proof of the operator; a software-supplied operator id is not. We are not inventing a new design here. Software accreditation remains a second proof on the same request (the machine-to-machine JWT). Do not use a vendor-only API key plus `X-Operator-Id` and treat that pair as if it were an operator key.
+
+This repo still issues one sandbox key, `dwt-vendor-key`, not per-operator keys. That does not change the comparison: if DWT issues the key as part of operator onboarding, the key is the stronger proof.
+
+**Code:** `infra/lib/stacks/api-stack.ts` (`dwt-vendor-key`), `infra/lib/stacks/auth-stack.ts`, `learn/steps/05-auth-stack/README.md`, `learn/steps/07-api-proving-path/README.md`, `learn/qa/index.md` (**2026-09-23 — Why not use an operator API key?**)
+
+---
+
+## 2026-09-23 — Operator API key without a pairing grant
+
+**Step:** 05, 07, 11
+
+**Q:** We will need to use the operator API key then. The operator registers, gets an API key, then gives this to their software provider (or pastes it into the product’s config). DWT does not need to tie an operator to software as an authentication step, but does need to know what software was being used and that this software is approved.
+
+**A:** That is the right model, and it changes the earlier pairing recommendation. The operator registers with DWT during onboarding. DWT issues an **operator API key**. That key is the operator’s day-to-day credential. The operator then gives it to their software provider, or pastes it into the product’s configuration. DWT does not broker that hand-off.
+
+Authentication does not require a grant or pairing table. Any approved software that presents a valid operator key may submit for that operator. We drop “this software may act for this operator” as an auth gate. An operator may change products without DWT re-authorising a pairing.
+
+Every request still carries two proofs. The `x-api-key` is who the operator is: [API Gateway](https://eu-west-2.console.aws.amazon.com/apigateway/main/api-keys?region=eu-west-2) looks the key up in our store ([API keys and usage plans](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-key-usage-plans.html)), and we already know which operator it belongs to. The software JWT is which product is calling: [Cognito](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) issues a machine-to-machine token whose `client_id` is the accredited product ([app clients](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)). The gateway checks the JWT locally ([JWKS](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html)) and still requires the key.
+
+DWT must still reject unapproved software — an unknown or suspended Cognito client. If the client is disabled, no new tokens are issued. That is a software check, not a pairing check. DWT must still record which software was used on the write, even though we do not bind operator to software at auth time. Persist `softwareApplicationId` / `client_id` on the EVENT so the audit trail (and the lake) can say which product submitted. That is recording, not authorising.
+
+This repo does not do that today. There is one vendor API key (`dwt-vendor-key`), the JWT is the software, there is no operator key, and reservations and the fifty unused-ID cap are keyed on the software `client_id`. Organisation names in the JSON body are data, not a login. We would not use `X-Operator-Id` as identity.
+
+If we later implement this, the high-level changes would be: issue API keys per operator on an API Gateway usage plan; keep the machine-to-machine JWT as software; persist `softwareApplicationId` / `client_id` on events; re-key reservation ownership to the operator resolved from the API key; drop grant-as-auth; do not treat `X-Operator-Id` as identity.
+
+**Code:** `infra/lib/stacks/auth-stack.ts`, `infra/lib/stacks/api-stack.ts` (`dwt-vendor-key`), `src/lib/reservations.ts` (`callerClientId`, `ownerReservedGsiPk`), `src/lib/operations/reservations.ts`, `src/lib/ledger.ts`, `learn/steps/05-auth-stack/README.md`, `learn/steps/07-api-proving-path/README.md`, `learn/steps/11-offline-ids/README.md`, `learn/qa/index.md` (this entry revises the grant-as-auth parts of **2026-09-23 — Approved software and authorised operator** and **2026-09-23 — Why not use an operator API key?**)
+
+---
+
+## 2026-09-23 — How do we delete and recreate the AWS environment
+
+**Step:** 10
+
+**Q:** I think its about time we delete the current AWS environment and recreate it. How do we do that?
+
+**A:** Tear down only the five `Dwt*` stacks in the sandbox, then deploy them again in the lesson order. Keep the AWS account, the [IAM](https://console.aws.amazon.com/iam/home#/users) / [IAM Identity Center](https://eu-west-2.console.aws.amazon.com/singlesignon/home?region=eu-west-2#/instances) login, the laptop profile `dwt-dev`, and the [CDK bootstrap](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) stack (`CDKToolkit`). This is the sandbox path in [learn/environments.md](../environments.md). The lesson-style walkthrough to keep current is [appendix — destroy and rebuild](../steps/appendix-destroy-rebuild/README.md); [step 10](../steps/10-remaining-and-prod/README.md) points there as well. Do not run it against a production account. Do not paste access keys, client secrets, API keys, tokens, or `sts get-caller-identity` JSON into chat.
+
+Confirm you are in the sandbox first. From the **repo root** (`rubl/`), in a new terminal:
+
+```bash
+export AWS_PROFILE=dwt-dev
+export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+export CDK_DEFAULT_REGION=eu-west-2
+```
+
+If the session has expired (Path B / SSO), run `aws sso login --profile dwt-dev` and then the same three exports. `aws sts get-caller-identity` should mention the sandbox identity you already know (for example `dwt-dev-admin`). If the ARN looks like a work production role, stop. Watch the delete in [CloudFormation stacks](https://eu-west-2.console.aws.amazon.com/cloudformation/home?region=eu-west-2#/stacks) ([delete a stack](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-delete-stack.html)).
+
+[`infra/bin/app.ts`](../../infra/bin/app.ts) wires dependents onto exporters: `DwtApi` needs Auth and Ledger, `DwtEvents` needs Ledger, `DwtCharging` needs Events. Destroy **dependents first**, as step 10 says, or CloudFormation exports block the delete:
+
+```bash
+npx cdk destroy DwtApi DwtCharging DwtEvents DwtLedger DwtAuth
+```
+
+Confirm when CDK asks. You do not need to empty [Kinesis](https://eu-west-2.console.aws.amazon.com/kinesis/home?region=eu-west-2#/streams/list) first; the stream goes with `DwtEvents`. The lake bucket is versioned and uses `RemovalPolicy.DESTROY` plus `autoDeleteObjects`, so CDK should empty [S3](https://eu-west-2.console.aws.amazon.com/s3/home?region=eu-west-2) ([empty a versioned bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/empty-bucket.html)) as part of destroy. If `DwtEvents` fails because the bucket is not empty, empty **current objects and previous versions** in the console, then run the same `cdk destroy` again for the stacks that remain. Leave `CDKToolkit` alone. After a successful destroy you should still see that bootstrap stack; you do not re-run `cdk bootstrap` unless you deleted it or changed account or region.
+
+Billed leftovers to glance at after destroy: the lake bucket if it survived, leftover [Kinesis](https://eu-west-2.console.aws.amazon.com/kinesis/home?region=eu-west-2#/streams/list) streams, and [CloudWatch log groups](https://eu-west-2.console.aws.amazon.com/cloudwatch/home?region=eu-west-2#logsV2:log-groups) ([log groups](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/Working-with-log-groups-and-streams.html)). Billing is a [global console](https://console.aws.amazon.com/billing/home#/). Sandbox tables and the lake are meant to be destroyable; production would use `RemovalPolicy.RETAIN` and would not auto-delete S3.
+
+Recreate **one stack per lesson**, not `--all`. The lessons are Auth → Ledger → Api → Events → Charging (`DwtApi` is step 07 and only needs Auth and Ledger; it does not wait for the lake). Same profile and `CDK_DEFAULT_*` exports as above. Type `y` when CDK asks about IAM.
+
+```bash
+npx cdk deploy DwtAuth
+npx cdk deploy DwtLedger
+npx cdk deploy DwtApi
+npx cdk deploy DwtEvents
+npx cdk deploy DwtCharging
+```
+
+Every Cognito client and the operator API key are new after this. Copy the new values into Bruno collection `dwt-sandbox`, environment `dev` — not into chat. Tick **Secret** for `clientSecret` and `apiKey` if Bruno offers it. Clear the old `token`, `movementId`, and `deliveryId`.
+
+**`tokenUrl`** and **`clientId`** from [CloudFormation](https://eu-west-2.console.aws.amazon.com/cloudformation/home?region=eu-west-2#/stacks) → `DwtAuth` → **Outputs**, or:
+
+```bash
+aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='TokenUrl'].OutputValue" --output text
+aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text
+```
+
+**`clientSecret`** is not a stack output. Open [Cognito → User pools](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) ([app clients](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html)) → `dwt-vendor-m2m` → `dwt-vendor-software` → **Show** / **View client secret**, or:
+
+```bash
+POOL=$(aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
+CLIENT=$(aws cloudformation describe-stacks --stack-name DwtAuth \
+  --query "Stacks[0].Outputs[?OutputKey=='ClientId'].OutputValue" --output text)
+aws cognito-idp describe-user-pool-client --user-pool-id "$POOL" --client-id "$CLIENT" \
+  --query 'UserPoolClient.ClientSecret' --output text
+```
+
+**`apiBase`** and the operator **`apiKey`** (`dwt-operator-sandbox`, ARN `ApiKeySecretArn`) after `DwtApi` is up:
+
+```bash
+aws cloudformation describe-stacks --stack-name DwtApi \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text
+aws cloudformation describe-stacks --stack-name DwtApi \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiKeySecretArn'].OutputValue" --output text
+aws secretsmanager get-secret-value --secret-id "<ARN>" --query SecretString --output text
+```
+
+Same secret in [Secrets Manager](https://eu-west-2.console.aws.amazon.com/secretsmanager/listsecrets?region=eu-west-2); same key in [API keys](https://eu-west-2.console.aws.amazon.com/apigateway/main/api-keys?region=eu-west-2) ([usage plans](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-key-usage-plans.html)). `apiBase` must end `/prod/dwt`. Then **Get token** in Bruno so `token` is a fresh JWT.
+
+You do not reset `learn/progress.json` or close the account. The next HTTP call should use the new software client and the new operator key.
+
+See also the lesson-style walkthrough: [appendix — destroy and rebuild](../steps/appendix-destroy-rebuild/README.md). Run the checks with `npm run learn -- appendix-destroy-rebuild destroy` and `npm run learn -- appendix-destroy-rebuild rebuild`. That appendix is the procedure to keep current; this answer is the same sequence in short form.
+
+**Code:** `learn/steps/appendix-destroy-rebuild/README.md`, `learn/steps/10-remaining-and-prod/README.md` (points at the appendix), `learn/environments.md`, `learn/aws-dev-setup.md`, `infra/bin/app.ts`, `learn/steps/05-auth-stack/README.md`, `learn/steps/06-ledger-stack/README.md`, `learn/steps/07-api-proving-path/README.md`, `learn/steps/08-events-lake/README.md`, `learn/steps/09-charging/README.md`, `learn/bruno.md`
+
+---
+
+## 2026-09-23 — How do we tie widgets to the API?
+
+**Step:** 12
+
+**Q:** You say the widgets only emit events and calling DWT is a later, separate step. How do we tie the UI widgets to the use of the API so we can see that path?
+
+**A:** The widgets never call Digital Waste Tracking. In the first-party shell, [`WidgetHost.tsx`](../../apps/dwt-operator-ui/src/WidgetHost.tsx) listens for `dwt-submit` from `dwt-review-submit`. [`App.tsx`](../../apps/dwt-operator-ui/src/App.tsx) hands that body to `useSubmitMovement` in [`packages/dwt-operator-client/src/hooks.ts`](../../packages/dwt-operator-client/src/hooks.ts), which runs `submitOrQueue` and `POST`s `/bff/movements`. The local BFF ([`apps/dwt-bff/src/server.ts`](../../apps/dwt-bff/src/server.ts)) mints the Cognito JWT, forwards the operator `x-api-key`, and proxies to `POST {API_BASE}/movements`. Opening the journey reserves IDs the same way via `useEnsureReservedIds` → `POST /bff/id-reservations` → `POST /id-reservations`. The review and done screens show whether the movement was queued or submitted and the movement id; secrets stay on the BFF. Run `npm run bff` and `npm run ui` to walk it. The widget-demo host only logs events; a vendor would map them onto their own API client.
+
+**Code:** `apps/dwt-operator-ui/src/App.tsx`, `apps/dwt-operator-ui/src/WidgetHost.tsx`, `packages/dwt-operator-client/src/hooks.ts`, `packages/dwt-operator-client/src/queue.ts`, `apps/dwt-bff/src/server.ts`, `learn/steps/12-create-movement-mfe/README.md`
+
+---
+
+## 2026-09-23 — Reserved IDs only when offline?
+
+**Step:** 12 (and 11)
+
+**Q:** It sounds like you are using the reserved Id's even if online. These should only be used if offline. If online no Id is provided and a new one is returned by the API.
+
+**A:** That is the product rule. While online the shell still reserves a small batch via `POST /id-reservations` so a pool exists before the radio drops, but an ordinary create does not consume it: `submitOrQueue` posts `POST /movements` (via the BFF) with no `movementId`, and the API mints and returns a new public id. Only an offline submit takes one reserved movement id from IndexedDB, attaches it as `movementId`, and queues the body without fetching. When the device is back online, flush sends that same reserved id so the API claims the reservation — that is the only online call that should include a reserved id.
+
+**Code:** `packages/dwt-operator-client/src/queue.ts`, `packages/dwt-operator-client/test/queue.test.ts`, `apps/dwt-operator-ui/src/App.tsx`, `learn/steps/12-create-movement-mfe/README.md`, `learn/steps/11-offline-ids/README.md`

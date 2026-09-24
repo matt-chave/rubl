@@ -1,8 +1,16 @@
-# Bruno — GUI for steps 07 and 10
+# Bruno — primary HTTP client from step 05
 
-[Bruno](https://www.usebruno.com/) is a desktop HTTP client. It does the same job as `curl`: JWT + `x-api-key` + JSON body. Step 07 can still use curl; [step 10](steps/10-remaining-and-prod/README.md) walks the full journey in Bruno first (curl is the alternative there). Pick Bruno **or** [Postman](postman.md), not both.
+[Bruno](https://www.usebruno.com/) is a desktop HTTP client. It does the same job as `curl`: a software JWT, later an operator `x-api-key`, and a JSON body. Use it as the **primary** way to call Cognito and the waste API. [curl](steps/07-api-proving-path/README.md#alternative-curl) is the alternative in each step README. Pick Bruno **or** [Postman](postman.md), not both.
 
-Do not paste client secrets, API keys, or tokens into chat.
+| Step | What you Send |
+|---|---|
+| [05](steps/05-auth-stack/README.md) | **Get token** only — Cognito. There is no waste API yet |
+| [07](steps/07-api-proving-path/README.md) | Get token + **Create movement** + 401 / 403 / 400 |
+| [08](steps/08-events-lake/README.md) / [09](steps/09-charging/README.md) | Reuse **Create movement** so the lake / charging subscribers see a new EVENT |
+| [10](steps/10-remaining-and-prod/README.md) | Collection → delivery → receipt → fate → EWC |
+| [11](steps/11-offline-ids/README.md) | **Reserve IDs**, then claim on create / delivery |
+
+This file is the shared install + environment. Click-by-click requests live in those READMEs. Do not paste client secrets, API keys, or tokens into chat.
 
 ## Install (macOS)
 
@@ -21,18 +29,20 @@ Docs: [Bruno documentation](https://docs.usebruno.com/).
 
 1. **Create Collection** → name `dwt-sandbox` → save it **outside** this git repo (or add `*.bru` secrets to `.gitignore` if you insist on saving next to the code). Do not commit secrets.
 2. Right-click the collection → **Settings** / **Environments** → **Create Environment** → name `dev`.
-3. Open the environment picker (top right) → **Configure** → `dev`. Add a row per variable (**Name** / **Value**). Values come from step 07 collect-outputs / Cognito — paste from your terminal or password manager, not from chat. Tick **Secret** for `clientSecret` and `apiKey` if Bruno offers it:
+3. Open the environment picker (top right) → **Configure** → `dev`. Add a row per variable (**Name** / **Value**). Values come from step 05 (Cognito) and step 07 (`apiBase` + `apiKey`) — paste from your terminal or password manager, not from chat. Tick **Secret** for `clientSecret` and `apiKey` if Bruno offers it:
 
    | Name | Value |
    |---|---|
    | `apiBase` | `ApiBaseUrl` (ends `/dwt`) |
    | `tokenUrl` | `DwtAuth` `TokenUrl` (`…/oauth2/token`) |
-   | `clientId` | Cognito app client id |
+   | `clientId` | Cognito app client id (approved software) |
    | `clientSecret` | Cognito app client secret |
-   | `apiKey` | Secrets Manager API key (not the Cognito secret) |
+   | `apiKey` | Operator API key from Secrets Manager (`dwt-operator-sandbox`; not the Cognito secret) |
    | `token` | leave empty — filled after Get token |
-   | `movementId` | leave empty — filled after Create movement (step 10) |
+   | `movementId` | leave empty — filled after Create movement (step 07 / 10) |
    | `deliveryId` | leave empty — filled after Record delivery (step 10) |
+
+   In **step 05** only `tokenUrl`, `clientId`, `clientSecret`, and `token` exist. Leave `apiBase` / `apiKey` / the ids empty until [step 07](steps/07-api-proving-path/README.md).
 
 4. Select environment **dev** in the top-right.
 
@@ -78,9 +88,9 @@ This is lesson 05: client credentials, not `/movements`.
 4. **Body** → **JSON**. Paste the contents of [`learn/fixtures/create-movement.json`](fixtures/create-movement.json) (not the secrets).
 5. **Send**. Expect **201** and a `movementId`.
 
-The rest of the journey (collection → delivery → receipt → fate → EWC) is click-by-click in [step 10](steps/10-remaining-and-prod/README.md): duplicate **Create movement**, keep `Authorization: Bearer {{token}}` and `x-api-key: {{apiKey}}`, change the URL and body, and use `bru.setEnvVar` for `movementId` / `deliveryId`.
+The rest of the journey (collection → delivery → receipt → fate → EWC) is click-by-click in [step 10](steps/10-remaining-and-prod/README.md): duplicate **Create movement**, keep `Authorization: Bearer {{token}}` and `x-api-key: {{apiKey}}`, change the URL and body, and use `bru.setEnvVar` for `movementId` / `deliveryId`. [Step 11](steps/11-offline-ids/README.md) adds **Reserve IDs** (`POST {{apiBase}}/id-reservations`).
 
-## Make it fail (same as step 07.6)
+## Make it fail (same as step 07 auth failures)
 
 - Duplicate `Create movement`, delete the `Authorization` header → **401**.
 - Duplicate, delete `x-api-key` → **403**.
@@ -89,5 +99,5 @@ The rest of the journey (collection → delivery → receipt → fate → EWC) i
 ## If it fails
 
 - **401** on create with a token: mint a new token (it expires). Confirm `DwtApi` was deployed with `authorizationScopes` (see step 07).
-- **403**: wrong or empty `apiKey`.
+- **403**: wrong or empty operator `apiKey`.
 - Empty `apiBase`: it must include `/dwt` and `/prod`.

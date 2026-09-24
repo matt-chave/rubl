@@ -3,14 +3,16 @@
  *
  * Why a shared adapter: every endpoint must return the same validation
  * envelope (`validation.errors` / `validation.warnings`) and the same 404
- * `{ code, message }` body. Putting that in one place keeps 18 Lambdas thin.
+ * `{ code, message }` body. Putting that in one place keeps the per-operation Lambdas thin.
  *
- * Auth never happens here — Cognito JWT + API key are enforced at the
- * gateway so this code stays a domain function.
+ * Auth never happens here — the Cognito JWT (software) and operator API
+ * key are enforced at the gateway so this code stays a domain function.
+ * Mutating handlers still resolve the operator from the key id and
+ * record the software client on the write.
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
-import { NotFoundError, ValidationError } from './errors'
+import { ConflictError, NotFoundError, ValidationError } from './errors'
 import type { ValidationIssue } from './types'
 
 export interface HandlerResult {
@@ -98,6 +100,9 @@ export function apiHandler(handler: DomainHandler) {
       }
       if (err instanceof NotFoundError) {
         return json(404, { code: err.code, message: err.message })
+      }
+      if (err instanceof ConflictError) {
+        return json(409, { code: err.code, message: err.message })
       }
       console.error('unhandled', err)
       return json(500, {

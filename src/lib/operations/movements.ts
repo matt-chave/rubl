@@ -10,7 +10,9 @@
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 import type { HandlerResult } from '../http'
 import { pathParam, validationEnvelope } from '../http'
+import { ConflictError } from '../errors'
 import {
+  claimReservation,
   getCurrent,
   mintMovementId,
   movementPk,
@@ -18,6 +20,7 @@ import {
   reviseAggregate,
   writeNewAggregate,
 } from '../ledger'
+import { callerAudit } from '../identity'
 import {
   assertCanSoftDeleteMovement,
   rejectCreateDeleteFlag,
@@ -51,23 +54,36 @@ function currentFromCreate(movementId: string, body: Record<string, unknown>, no
 }
 
 export async function createMovement(
-  _event: APIGatewayProxyEvent,
+  event: APIGatewayProxyEvent,
   body: Record<string, unknown>,
 ): Promise<HandlerResult> {
   const { warnings } = validateOperation('createMovement', body)
   rejectCreateDeleteFlag(body)
 
-  const movementId = await mintMovementId()
+  const audit = await callerAudit(event)
+  const supplied = typeof body.movementId === 'string' && body.movementId.length > 0 ? body.movementId : undefined
+  let movementId: string
+  if (supplied) {
+    const existing = await getCurrent(movementPk(supplied))
+    if (existing) {
+      throw new ConflictError('ALREADY_EXISTS', `Movement ${supplied} already exists`)
+    }
+    await claimReservation(supplied, 'MOVEMENT', audit.operatorId)
+    movementId = supplied
+  } else {
+    movementId = await mintMovementId()
+  }
   const now = new Date().toISOString()
   const current = currentFromCreate(movementId, body, now)
-  const event = newEvent({
+  const domainEvent = newEvent({
     pk: current.PK,
     eventType: 'MOVEMENT_CREATED',
     publicId: movementId,
     apiCode: String(body.apiCode),
     payload: { movementId, ...body },
+    ...audit,
   })
-  await writeNewAggregate(current, event)
+  await writeNewAggregate(current, domainEvent)
 
   return {
     statusCode: 201,
@@ -112,6 +128,7 @@ export async function updateMovement(
     publicId: movementId,
     apiCode: String(body.apiCode),
     payload: { movementId, ...body },
+    ...(await callerAudit(event)),
   })
   await reviseAggregate(previous, next, domainEvent)
 

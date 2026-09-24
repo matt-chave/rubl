@@ -32,11 +32,13 @@ servers:
     description: Placeholder server URL — replace with the real environment URL.
 
 # LOCAL OVERLAY — the upstream DEFRA spec does not declare securitySchemes.
-# This environment requires BOTH credentials on every call:
-#   1. OAuth2 client-credentials JWT (Cognito, or a later Defra issuer)
-#   2. API Gateway API key (x-api-key) for usage plans / rate limits
-# The JWT is validated at the gateway (stateless) so Lambdas never round-trip
-# to the IdP on each of the hundreds of millions of annual movements.
+# This environment requires both credentials on every call: an OAuth2
+# client-credentials JWT (approved software; Cognito, or a later Defra
+# issuer) and an API Gateway operator API key (x-api-key) issued at
+# operator onboarding. The JWT is validated at the gateway (stateless)
+# so Lambdas never round-trip to the IdP on each of the hundreds of
+# millions of annual movements. There is no pairing grant: any approved
+# software plus a valid operator key may submit.
 security:
   - oauth2: [dwt/movements]
     apiKey: []
@@ -54,6 +56,8 @@ tags:
     description: Producer-facing read-only query of a movement's status and outcome.
   - name: Reference data
     description: Lookup endpoints for codes used elsewhere in the API.
+  - name: Identifiers
+    description: Pre-allocate public Movement and Delivery IDs for offline use.
 
 components:
   securitySchemes:
@@ -71,7 +75,9 @@ components:
       type: apiKey
       in: header
       name: x-api-key
-      description: API Gateway usage-plan key. Required in addition to the Bearer token.
+      description: |
+        Operator API key issued at onboarding (sandbox: dwt-operator-sandbox).
+        Required in addition to the software Bearer token. Not X-Operator-Id.
 
   # ----------------------------------------------------------------------
   # Reusable parameters
@@ -108,25 +114,29 @@ components:
     movementId:
       type: string
       description: |
-        Unique identifier for a waste movement. Minted by the server on
-        `POST /movements` and immutable thereafter. Short,
-        externally-shared, year-prefixed sqids (YY + alphanumerics, see
-        https://sqids.org/). Format is opaque to callers; do not parse.
+        Unique identifier for a waste movement. Usually minted by the server
+        on `POST /movements`. A vendor that must print an ID while offline
+        may instead supply an ID from `POST /id-reservations`. Immutable
+        once the movement exists. Short, externally-shared, year-prefixed
+        sqids (YY + alphanumerics, see https://sqids.org/). Format is
+        opaque to callers; do not parse.
       example: 25HRA0B2
 
     deliveryId:
       type: string
       description: |
         Unique identifier for a delivery, covering one or more Movement IDs
-        delivered together at a single receiver site. Minted by the server
-        on `POST /deliveries`. Short, externally-shared,
+        delivered together at a single receiver site. Usually minted by the
+        server on `POST /deliveries`. A vendor that must print an ID while
+        offline may instead supply an ID from `POST /id-reservations`
+        (non-hazardous deliveries only). Short, externally-shared,
         year-prefixed sqids (YY + alphanumerics, see https://sqids.org/).
         Format is opaque to callers; do not parse.
 
         Exception: for a hazardous delivery, the request contains exactly
         one Movement ID (see the hazardous-waste constraint on
         `POST /deliveries`), and `deliveryId` is set equal to that Movement
-        ID rather than minted.
+        ID rather than minted or claimed.
       example: 25KMT4Z9
 
     # Internal event identifiers (creationId, collectionId, deliveryEventId,
@@ -701,6 +711,13 @@ components:
             submitter is the movement initiator (carrier or broker). The backend
             may resolve this to an internal submittingOrganisation.
           example: 25b14080-5e77-4f91-9957-2482a0cb8775
+        movementId:
+          allOf:
+            - $ref: '#/components/schemas/movementId'
+          description: |
+            Optional. When omitted the server mints a new Movement ID. When
+            supplied it must be a still-valid reservation from
+            `POST /id-reservations` owned by this caller.
         plannedCollectionTime:
           type: string
           format: date-time
@@ -1041,6 +1058,15 @@ components:
             server splits them into separate delivery entries in the response.
             This depends on properties of the linked Movements not carried in
             the body, so it is performed server-side (see the endpoint description).
+        deliveryId:
+          allOf:
+            - $ref: '#/components/schemas/deliveryId'
+          description: |
+            Optional. When omitted the server mints a Delivery ID for the
+            non-hazardous group. When supplied it must be a still-valid
+            reservation from `POST /id-reservations` owned by this caller.
+            Ignored when every named Movement is hazardous (`deliveryId`
+            equals that Movement ID).
         actualDateTimeDelivered:
           type: string
           format: date-time
@@ -1149,6 +1175,50 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/validationResult'
+
+    reserveIdsRequest:
+      type: object
+      description: |
+        How many public IDs to reserve for offline use. Each count is
+        optional and defaults to 0; ask for at least one. A caller may
+        have at most 50 unused IDs in circulation (reserved, not yet
+        claimed or expired). Asking for more than the remaining quota
+        returns only what is left (movements first, then deliveries).
+        Asking for 50 while 10 are still unused yields 40. Reservations
+        expire after a configurable window (default 30 days) and are
+        never reissued.
+      properties:
+        movementCount:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of Movement IDs requested (may be reduced by the circulation cap).
+        deliveryCount:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of Delivery IDs requested (may be reduced by the circulation cap).
+
+    reserveIdsResponse:
+      type: object
+      description: Reserved public IDs and when they expire if unused.
+      required: [movementIds, deliveryIds, expiresAt, inCirculation]
+      properties:
+        movementIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/movementId'
+        deliveryIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/deliveryId'
+        expiresAt:
+          type: string
+          format: date-time
+          description: After this instant an unused reservation cannot be claimed.
+        inCirculation:
+          type: integer
+          description: How many unused reserved IDs this caller now holds, including this response. The maximum is 50.
 
     # ------------------------------------------------------------------
     # Receipt without a prior delivery (D-041) — proposal. See the
@@ -1858,6 +1928,7 @@ components:
             - InvalidValue: The value provided is not valid based on the business rules
             - OutOfRange: The value provided is outside the allowed range
             - BusinessRuleViolation: The value provided violates a specific business rule.
+            - IdNotReserved: A client-supplied public ID was missing, expired, consumed, or reserved by another caller.
           example: NotProvided
         message:
           type: string
@@ -2050,18 +2121,52 @@ components:
 # Paths
 # ======================================================================
 paths:
+  /id-reservations:
+    post:
+      tags: [Identifiers]
+      summary: Reserve public Movement and Delivery IDs
+      description: |
+        Mints the same year-prefixed sqids used on create/delivery and
+        reserves them for this caller. Use when vendor software must print
+        or store an ID while offline. Claim a reserved Movement ID by
+        sending it as `movementId` on `POST /movements`, and a reserved
+        Delivery ID as `deliveryId` on `POST /deliveries` (non-hazardous
+        only). A caller may hold at most 50 unused IDs at once; this
+        request is filled up to the remaining quota (movements first).
+        Unused reservations expire and are never recycled — the
+        sequence number is consumed so an online mint cannot collide.
+        This call does not write a waste event.
+      operationId: reserveIds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/reserveIdsRequest'
+      responses:
+        '201':
+          description: The reserved IDs, their expiry, and how many unused IDs this caller now holds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/reserveIdsResponse'
+        '400':
+          $ref: '#/components/responses/400'
+
   /movements:
     post:
       tags: [Movement]
       summary: Create a waste movement
       description: |
-        Mints a new Movement ID. Carrier details are always required.
-        Broker details are required only when the movement is
-        broker-initiated. The Movement ID returned in the response
-        should be stored by the caller and used for any subsequent
-        updates or related events (collection, delivery,
-        fate-of-waste query). `isDeleted` must not be supplied as `true`
-        here — it can only be set via `PUT /movements/{movementId}`.
+        Creates a Movement. When `movementId` is omitted the server mints
+        one. When `movementId` is supplied it must be a reservation from
+        `POST /id-reservations` still owned by this caller. Carrier details
+        are always required. Broker details are required only when the
+        movement is broker-initiated. The Movement ID returned in the
+        response should be stored by the caller and used for any subsequent
+        updates or related events (collection, delivery, fate-of-waste
+        query). `isDeleted` must not be supplied as `true` here — it can
+        only be set via `PUT /movements/{movementId}`.
       operationId: createMovement
       requestBody:
         required: true
@@ -2078,6 +2183,8 @@ paths:
                 $ref: '#/components/schemas/createMovementResponse'
         '400':
           $ref: '#/components/responses/400'
+        '409':
+          description: The supplied movementId already has a CURRENT record.
 
   /movements/{movementId}:
     parameters:
@@ -2230,7 +2337,8 @@ paths:
         than minted. This split depends on properties of the linked Movements
         that the request body does not carry, so it is performed server-side.
         The response is an array of delivery entries (see `deliveryResponse`)
-        rather than a single deliveryId.
+        rather than a single deliveryId. Optional `deliveryId` claims a
+        reserved ID for the non-hazardous group only.
 
         Every Movement named in `movementIds` must be active: a Movement that
         is currently `isDeleted: true`, or whose Collection is currently
@@ -2254,6 +2362,8 @@ paths:
                 $ref: '#/components/schemas/deliveryResponse'
         '400':
           $ref: '#/components/responses/400'
+        '409':
+          description: The supplied deliveryId already has a CURRENT record.
 
   /deliveries/{deliveryId}:
     parameters:

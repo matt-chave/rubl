@@ -3,7 +3,8 @@
  *
  * Entry is src/lambdas/<operationId>/index.ts. Shared code is bundled from
  * src/lib by esbuild — there is no Lambda layer. Table names come in as
- * env vars; IAM is grantReadWriteData on movements / history / sequences.
+ * env vars; IAM is grantReadWriteData on movements / history / sequences
+ * (and reservations when that table is passed).
  * Auth is at API Gateway, not in this construct.
  */
 
@@ -23,6 +24,7 @@ export interface DwtLambdaProps {
     movements: dynamodb.ITable
     history: dynamodb.ITable
     sequences: dynamodb.ITable
+    reservations?: dynamodb.ITable
   }
   extraEnv?: Record<string, string>
   timeout?: Duration
@@ -38,6 +40,9 @@ export class DwtLambda extends NodejsFunction {
       environment.MOVEMENTS_TABLE = props.tables.movements.tableName
       environment.HISTORY_TABLE = props.tables.history.tableName
       environment.SEQUENCE_TABLE = props.tables.sequences.tableName
+      if (props.tables.reservations) {
+        environment.RESERVATIONS_TABLE = props.tables.reservations.tableName
+      }
     }
 
     super(scope, id, {
@@ -70,6 +75,7 @@ export class DwtLambda extends NodejsFunction {
       props.tables.movements.grantReadWriteData(this)
       props.tables.history.grantReadWriteData(this)
       props.tables.sequences.grantReadWriteData(this)
+      props.tables.reservations?.grantReadWriteData(this)
     }
   }
 }
