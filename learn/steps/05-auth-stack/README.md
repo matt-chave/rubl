@@ -74,21 +74,45 @@ npx cdk deploy DwtOnboarding
 
 3. **Primary path — software provider signup form**
 
-   Copy `apps/dwt-bff/.env.example` to `apps/dwt-bff/.env.local` and set:
+   You are about to open a **local** signup page in the browser. It is not an AWS console screen and it is not hosted on the internet. The page is a Vite app in this repo (`apps/dwt-onboarding-ui`). The browser talks only to that app on port `5174`. When you submit the form, the app calls a small local backend (the BFF on port `8787`) through Vite’s proxy. The BFF holds the deployed onboarding URL and secrets so they never sit in the browser; it then calls your `DwtOnboarding` API in AWS. That is why two processes must be running before the page works: the UI serves the form, and the BFF is the only process that may reach CloudFormation’s onboarding base URL.
+
+   Point the BFF at the API you just deployed. A shell `export` alone is not enough — the BFF reads `.env.local` when it starts. Create that file only if it is missing (do not overwrite an existing `.env.local`):
 
    ```bash
-   ONBOARDING_API_BASE=$(aws cloudformation describe-stacks --stack-name DwtOnboarding \
-     --query "Stacks[0].Outputs[?OutputKey=='OnboardingApiBaseUrl'].OutputValue" --output text)
+   test -f apps/dwt-bff/.env.local || cp apps/dwt-bff/.env.example apps/dwt-bff/.env.local
    ```
 
-   Leave `API_BASE`, `CLIENT_ID`, and the other movements values empty for now if you have not reached step 07. Then in two terminals from the repo root:
+   With the same AWS profile as the deploy, print the `OnboardingApiBaseUrl` stack output (you can also copy it from [CloudFormation](https://eu-west-2.console.aws.amazon.com/cloudformation/home?region=eu-west-2) → stack `DwtOnboarding` → **Outputs** → `OnboardingApiBaseUrl`):
+
+   ```bash
+   export AWS_PROFILE=dwt-dev
+   export AWS_DEFAULT_REGION=eu-west-2
+   aws cloudformation describe-stacks --stack-name DwtOnboarding \
+     --query "Stacks[0].Outputs[?OutputKey=='OnboardingApiBaseUrl'].OutputValue" --output text
+   ```
+
+   Paste that one-line URL after `ONBOARDING_API_BASE=` in `apps/dwt-bff/.env.local` (no trailing slash, no quotes). Leave `API_BASE`, `CLIENT_ID`, and the other movements values empty for now if you have not reached step 07.
+
+   From the **repo root**, open two terminal sessions (Cursor: **Terminal → New Terminal**, or the **+** in the terminal panel). Both must keep running — do not use one shell for both unless you background the first.
+
+   In the first terminal, start the BFF and leave it open. Ready looks like a listening message on port `8787`:
 
    ```bash
    npm run bff
+   ```
+
+   In the second terminal, start the onboarding UI and leave it open. Ready looks like Vite printing `Local: http://127.0.0.1:5174/`:
+
+   ```bash
    npm run onboarding-ui
    ```
 
-   Open [http://127.0.0.1:5174](http://127.0.0.1:5174), choose **Register as a software provider**, submit product name and contact email. The host page shows `clientId`, `clientSecret`, and `tokenUrl` once. Copy them into a password manager — not git, not chat, not the widget source.
+   Opening the browser earlier (or without `onboarding-ui`) fails with connection refused because nothing is on that port yet. When you see the Vite line, open [http://127.0.0.1:5174](http://127.0.0.1:5174), choose **Register as a software provider**, and submit a product name and contact email. The host page shows `clientId`, `clientSecret`, and `tokenUrl` once. Copy them into a password manager — not git, not chat, not the widget source. If a port is already in use, stop the old process rather than starting a second copy. If the form submits but the BFF logs that `ONBOARDING_API_BASE` is missing, fill `.env.local` and restart `npm run bff`.
+
+   After a successful signup, confirm the vendor was stored in AWS — not under Cognito **Users**, and not as an IAM user. Approved software is a machine credential, so Cognito holds an **app client** on the same pool as the sandbox client, and DynamoDB holds the registration profile.
+
+   - Open [Cognito → User pools](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) in **eu-west-2**. Click pool **`dwt-vendor-m2m`**, then **App integration** → **App clients** (newer console: **Applications**). You should see the CDK sandbox client **`dwt-vendor-software`** and a separate client named like **`dwt-provider-…`** for the product you just registered. The **Users** list stays empty — that is expected.
+   - Open [DynamoDB → Tables](https://eu-west-2.console.aws.amazon.com/dynamodbv2/home?region=eu-west-2#tables). The physical table name is stack output `SoftwareProvidersTableName` on `DwtOnboarding` (it looks like `DwtOnboarding-SoftwareProviders…`, not the literal word `SoftwareProviders`). Select that table → **Explore table items** → **Run**. Expect one row per signup with partition key `PK` shaped `SOFTWARE#…`, plus `clientId` and `clientName` matching the Cognito app client. The `clientSecret` is not stored here.
 
 4. **Get a token** with the new client (or the sandbox fallback in step 5).
 
@@ -267,23 +291,27 @@ If `jq` says parse error, the curl did not return JSON. Typical failures: empty 
 
 ## Automated check
 
-After the deploys and a successful Get token (Bruno or curl):
+After the deploys, a successful software-provider signup (form or curl), and a successful Get token (Bruno or curl):
 
 ```bash
 npm run learn -- 05
 ```
 
+The sandbox app client alone is enough to practise Get token, but this runner expects at least one self-registered provider in Cognito and DynamoDB (the primary path above).
+
 ### What the runner checks
 
 - AWS credentials work and CloudFormation stacks `DwtAuth` and `DwtOnboarding` exist and are `*COMPLETE*`
-- `DwtAuth` outputs include `UserPoolId` and `TokenUrl`
+- `DwtAuth` outputs include `UserPoolId` and `TokenUrl`; `DwtOnboarding` includes `SoftwareProvidersTableName`
+- Pool `dwt-vendor-m2m` is readable and lists app clients, including sandbox `dwt-vendor-software`
+- The SoftwareProviders table is active and has at least one `SOFTWARE#…` row whose `clientId` matches a Cognito app client named like `dwt-provider-…`
 - CDK source declares `CreateUserPoolClient` for software-provider signup
 - The `dwt-software-provider-signup` widget package exists
 
 ### What you do by hand
 
 - Deploy `DwtAuth` and `DwtOnboarding`
-- Run the signup form (or the Bruno/curl alternative) and Get token
+- Run the signup form (or the Bruno/curl alternative), confirm the Cognito app client and DynamoDB row, and Get token
 - The runner does **not** fetch a token and does **not** ask you to paste a secret
 
 ## Quiz

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5174"
+    "dev": "vite --port 5175"
   },
   "dependencies": {
     "@dwt/mfe-create-movement": "0.1.0",

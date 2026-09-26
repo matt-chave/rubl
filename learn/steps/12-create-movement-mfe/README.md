@@ -52,7 +52,7 @@ When you open the task list or the review page, [`App.tsx`](../../../apps/dwt-op
 
 On each form page, [`WidgetHost.tsx`](../../../apps/dwt-operator-ui/src/WidgetHost.tsx) mounts a custom element from [`packages/dwt-mfe-create-movement/src/elements.tsx`](../../../packages/dwt-mfe-create-movement/src/elements.tsx) and listens for `dwt-change`, `dwt-valid`, and `dwt-submit`. Producer, carriers, and waste items update shell state on change and return to the task list on valid. The review widget is different: confirm fires `dwt-submit` with the assembled `createMovementRequest` body. The shell’s `onSubmit` handler calls `useSubmitMovement`, which runs `submitOrQueue` in [`packages/dwt-operator-client/src/queue.ts`](../../../packages/dwt-operator-client/src/queue.ts). Online, that `POST`s `/bff/movements` **without** a `movementId`; the API mints a new public id and returns it, and the reserved pool is left alone. Offline, `submitOrQueue` takes one reserved id, attaches it as `movementId`, and queues the body in IndexedDB (no fetch). When `online` fires or the operator clicks **Send queued movements**, flush sends that same reserved `movementId` so the API claims the reservation. In both online and flush paths the BFF adds Bearer JWT plus `x-api-key` and proxies to `POST {API_BASE}/movements`.
 
-The review and confirmation screens spell this out in the UI so you can see queued versus submitted and the movement id without opening the network tab. Tokens and API keys are never logged. The widget-demo app at port 5174 deliberately does **not** call DWT; a vendor would map the same events onto their own credentials.
+The review and confirmation screens spell this out in the UI so you can see queued versus submitted and the movement id without opening the network tab. Tokens and API keys are never logged. The widget-demo app at port 5175 deliberately does **not** call DWT; a vendor would map the same events onto their own credentials.
 
 ## Automated check
 
@@ -95,7 +95,7 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173). Walk **Start now** → prod
 npm run widget-demo
 ```
 
-Open [http://127.0.0.1:5174](http://127.0.0.1:5174). That page is not the operator shell. It only mounts `dwt-producer` and `dwt-waste-items` and logs `dwt-change`. A vendor would map those events onto their own submit path.
+Open [http://127.0.0.1:5175](http://127.0.0.1:5175). That page is not the operator shell. It only mounts `dwt-producer` and `dwt-waste-items` and logs `dwt-change`. A vendor would map those events onto their own submit path. Port 5174 is the onboarding host from lessons 5 and 5b.
 
 ## Alternative — read the widgets without running Vite
 

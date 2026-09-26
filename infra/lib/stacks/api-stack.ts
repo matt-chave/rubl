@@ -29,6 +29,7 @@ import { CfnOutput, Stack, StackProps } from 'aws-cdk-lib'
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
+import * as iam from 'aws-cdk-lib/aws-iam'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
 import * as cr from 'aws-cdk-lib/custom-resources'
 import { Construct } from 'constructs'
@@ -126,7 +127,11 @@ export class ApiStack extends Stack {
       },
     })
 
-    const apiKey = this.api.addApiKey('SandboxOperatorKey', {
+    // Standalone ApiKey (not RestApi.addApiKey). addApiKey wires stageKeys
+    // to deploymentStage; Lambdas also Ref the key id for SANDBOX_API_KEY_ID,
+    // which CloudFormation rejects as a circular dependency. Association is
+    // via the usage plan below and AttachOperatorsUsagePlan.
+    const apiKey = new apigateway.ApiKey(this, 'SandboxOperatorKey', {
       apiKeyName: 'dwt-operator-sandbox',
       value: apiKeySecret.secretValue.unsafeUnwrap(),
     })
@@ -174,9 +179,14 @@ export class ApiStack extends Stack {
           ],
         },
       },
-      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
-        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
-      }),
+      // API Gateway IAM uses HTTP verbs (PATCH), not SDK names like
+      // UpdateUsagePlan. fromSdkCalls would grant the wrong action.
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ['apigateway:PATCH'],
+          resources: ['arn:aws:apigateway:*::/usageplans/*'],
+        }),
+      ]),
       installLatestAwsSdk: false,
     })
 

@@ -36,16 +36,26 @@ Gate: step 05 complete (`DwtAuth` and `DwtOnboarding` already deployed).
      --query "Stacks[0].Outputs[?OutputKey=='OnboardingApiBaseUrl'].OutputValue" --output text
    ```
 
-2. Primary path — operator signup form:
+2. **Primary path — operator signup form**
+
+   Same local host as lesson 5: a Vite page on [http://127.0.0.1:5174](http://127.0.0.1:5174) and a BFF on `:8787` that proxies to `ONBOARDING_API_BASE`. The browser never calls AWS directly. From the **repo root**, start both servers and leave the terminals open. First terminal:
 
    ```bash
    npm run bff
+   ```
+
+   Second terminal:
+
+   ```bash
    npm run onboarding-ui
    ```
 
-   Open [http://127.0.0.1:5174](http://127.0.0.1:5174), choose **Register as a waste operator**, submit organisation name, address, and contact email. The host shows `operatorId` and the API key once. Copy the key into a password manager and into Bruno `dev` → `apiKey` when you reach step 07. Do not put the key in widget source or git.
+   Wait until the second terminal prints `Local: http://127.0.0.1:5174/`, then open that URL, choose **Register as a waste operator**, and submit organisation name, address, and contact email. The host shows `operatorId` and the API key once. Copy the key into a password manager and into Bruno `dev` → `apiKey` when you reach step 07. Do not put the key in widget source or git.
 
-3. Optional console look: [API Gateway → API keys](https://eu-west-2.console.aws.amazon.com/apigateway/main/api-keys?region=eu-west-2) should list a key named like `dwt-operator-op-…` on plan `dwt-operators`. You will not see the key value again after creation.
+3. Confirm where the operator was stored. A waste operator is not a Cognito user and not an IAM user. Signup writes a DynamoDB profile and creates an API Gateway API key on usage plan `dwt-operators`.
+
+   - Open [DynamoDB → Tables](https://eu-west-2.console.aws.amazon.com/dynamodbv2/home?region=eu-west-2#tables). The physical name is stack output `OperatorsTableName` on `DwtOnboarding` (it looks like `DwtOnboarding-Operators…`). Select that table → **Explore table items** → **Run**. Expect one row per signup with partition key `PK` shaped `OPERATOR#…`, plus `apiKeyId` and `apiKeyName` (named like `dwt-operator-op-…`). The key **value** is not stored here.
+   - Open [API Gateway → API keys](https://eu-west-2.console.aws.amazon.com/apigateway/main/api-keys?region=eu-west-2). You should see a key named like `dwt-operator-op-…` separate from the later sandbox key `dwt-operator-sandbox` (that sandbox key arrives with `DwtApi` in step 07). Open the signup key and confirm it is associated with usage plan **`dwt-operators`**. You will not see the key value again after creation.
 
 ## Alternative: Bruno or curl for `POST /operators`
 
@@ -62,6 +72,8 @@ Expect **201** with `operatorId` and `apiKey`. Store the key; do not commit it.
 
 ## Automated check
 
+After a successful operator signup (form or curl):
+
 ```bash
 npm run learn -- 05b
 ```
@@ -69,13 +81,15 @@ npm run learn -- 05b
 ### What the runner checks
 
 - `DwtOnboarding` is deployed and outputs include `OperatorsTableName` and `OperatorsUsagePlanId`
+- Usage plan `dwt-operators` exists; the Operators table is active
+- At least one self-registered Operators row (`OPERATOR#…`, `apiKeyName` like `dwt-operator-op-…`) whose `apiKeyId` is on that usage plan (sandbox `dwt-operator-sandbox` is allowed to remain if present; it is not enough on its own)
 - CDK / source declares operator signup, usage plan `dwt-operators`, and Operators table
 - `identity.ts` resolves non-sandbox keys via the Operators table
 - The `dwt-operator-signup` widget package exists
 
 ### What you do by hand
 
-- Run the operator signup form (or Bruno/curl)
+- Run the operator signup form (or Bruno/curl) and confirm the DynamoDB row and API key in the console
 - Copy the API key somewhere safe
 - The runner does **not** require a pasted key value
 

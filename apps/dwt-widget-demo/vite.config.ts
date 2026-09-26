@@ -15,7 +15,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5174,
+    // 5174 is apps/dwt-onboarding-ui; keep this demo on a free port.
+    port: 5175,
     fs: { allow: [root] },
   },
 })

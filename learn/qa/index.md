@@ -1316,3 +1316,184 @@ See also the lesson-style walkthrough: [appendix — destroy and rebuild](../ste
 **A:** That is the product rule. While online the shell still reserves a small batch via `POST /id-reservations` so a pool exists before the radio drops, but an ordinary create does not consume it: `submitOrQueue` posts `POST /movements` (via the BFF) with no `movementId`, and the API mints and returns a new public id. Only an offline submit takes one reserved movement id from IndexedDB, attaches it as `movementId`, and queues the body without fetching. When the device is back online, flush sends that same reserved id so the API claims the reservation — that is the only online call that should include a reserved id.
 
 **Code:** `packages/dwt-operator-client/src/queue.ts`, `packages/dwt-operator-client/test/queue.test.ts`, `apps/dwt-operator-ui/src/App.tsx`, `learn/steps/12-create-movement-mfe/README.md`, `learn/steps/11-offline-ids/README.md`
+
+---
+
+## 2026-09-25 — Why can't I get get-caller-identity to work?
+
+**Step:** 04
+
+**Q:** Why can't I get get-caller-identity to work?
+
+**A:** The command itself is fine when it is the full CLI form `aws sts get-caller-identity` (not a bare `get-caller-identity`). In the open terminal the CLI returned `InvalidClientTokenId` after `export AWS_PROFILE=matt.chave`, and earlier `The config profile (rubl-dev) could not be found`. The workshop profile is `dwt-dev` from [learn/aws-dev-setup.md](../aws-dev-setup.md) and step 04; that profile is already on this laptop and resolves identity. Profiles `matt.chave` and `default` still hold access keys AWS rejects. Export the workshop profile in the same shell, then retry — do not paste the JSON into chat. If you later see SSO token expiry instead, run `aws sso login --profile dwt-dev`. To rotate a dead IAM key pair, open [IAM → Users](https://console.aws.amazon.com/iam/home#/users) ([access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)).
+
+```bash
+export AWS_PROFILE=dwt-dev
+aws sts get-caller-identity
+```
+
+**Code:** `learn/aws-dev-setup.md`, `learn/steps/04-environments/README.md`, `learn/steps/05-auth-stack/README.md`
+
+---
+
+## 2026-09-25 — What is dwt-dev?
+
+**Step:** 04
+
+**Q:** What is dwt-dev? It's not an AWS account is it? Is it just an environment variable that is used to get the account details without revealing them on the command line?
+
+**A:** `dwt-dev` is a named AWS CLI [profile](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html) stored on this laptop under `~/.aws/config` (and credentials when Path A was used). It is the sandbox profile this workshop expects. The profile records how to sign in — typically [IAM Identity Center / SSO](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html) for this workshop — and which account and role that login should assume. The twelve-digit account id is not the profile name; it appears when a command such as `aws sts get-caller-identity` runs with that profile selected.
+
+`AWS_PROFILE` is the environment variable. `export AWS_PROFILE=dwt-dev` tells the AWS CLI and CDK which local profile to use for the rest of that terminal session. The value is only the profile name. It selects credentials so you do not pass access keys on the command line; it does not conceal the account. If the SSO session has expired, run `aws sso login --profile dwt-dev` before the profile can call AWS again. Full walkthrough: [`learn/aws-dev-setup.md`](../aws-dev-setup.md). Do not paste keys, account numbers, or `sts` JSON into chat.
+
+**Code:** `learn/aws-dev-setup.md`, `learn/steps/04-environments/README.md`
+
+## 2026-09-25 — Fix dwt-dev default output to json
+
+**Step:** 04
+
+**Q:** I ran `aws configure --profile dwt-dev` but didn't set the default output to json. How do I fix this?
+
+**A:** The workshop expects Default output format `json` for profile `dwt-dev` ([learn/aws-dev-setup.md](../aws-dev-setup.md)). You can set only that setting without touching access keys:
+
+```bash
+aws configure set output json --profile dwt-dev
+```
+
+Confirm with `aws configure get output --profile dwt-dev`, which should print `json` and does not reveal secrets. Named profiles and config files are documented in the [AWS CLI configuration files guide](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html).
+
+**Code:** `learn/aws-dev-setup.md`, `learn/steps/04-environments/README.md`
+
+---
+
+## 2026-09-25 — CDK bootstrap warnings
+
+**Step:** 05
+
+**Q:** Can you explain the warnings just got from running `npx cdk bootstrap aws://$CDK_DEFAULT_ACCOUNT/eu-west-2`?
+
+**A:** Bootstrap succeeded. The green line that the environment was bootstrapped with no changes means the `CDKToolkit` stack was already present in London for your account, which is what [learn/aws-dev-setup.md](../aws-dev-setup.md) and [step 05](../steps/05-auth-stack/README.md) expect after the first run. You can confirm it under [CloudFormation in eu-west-2](https://eu-west-2.console.aws.amazon.com/cloudformation/home?region=eu-west-2) and read the [CDK bootstrapping guide](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html).
+
+The template-validation notice is a CDK CLI advisement about optional stricter checks (`@aws-cdk/core:validateAgainstDefaultRules`); it did not block bootstrap and does not mean the sandbox is broken. The trusted-accounts and default execution-policy lines are normal single-account sandbox defaults (no cross-account deploy trust; CloudFormation may use the broad managed AdministratorAccess policy unless you pass a custom one). A “newer version of CDK is available” banner is only about the CLI on the laptop; upgrading is optional for this workshop once bootstrap already reports no changes.
+
+**Code:** `learn/aws-dev-setup.md`, `learn/steps/05-auth-stack/README.md`
+
+---
+
+## 2026-09-25 — Has learn 04b failed because the repo is already on GitHub?
+
+**Step:** 04b
+
+**Q:** Has learn -- 04b failed because this repo is already in a github repository? Should we skip this step if this is the case?
+
+**A:** No. The failure is not because `origin` already points at GitHub. The automated check wants a git repo, at least one commit, a sensible `.gitignore`, no tracked secrets or `node_modules`, and a remote named `origin` on a clone host. Your laptop already has `origin` at GitHub, and progress already lists 04b as complete, so the “share it” outcome of the lesson is done. Re-running `npm run learn -- 04b` used to fail with `.env is tracked — remove it from git before anyone clones` because the check treated any tracked path that is exactly `.env` or starts with `.env.` as forbidden, and the tracked template `.env.example` matched that pattern. Do not skip the step and do not edit `progress.json` by hand. Keep `.env.example` in the repo (it is the safe template, not a secret). The assert in [`learn/steps/04b-share-the-repo/check.ts`](../steps/04b-share-the-repo/check.ts) now rejects real `.env` / `.env.*` secrets but allows tracked `*.example` templates.
+
+**Code:** [`learn/steps/04b-share-the-repo/README.md`](../steps/04b-share-the-repo/README.md), `learn/steps/04b-share-the-repo/check.ts`
+
+---
+
+## 2026-09-25 — Why is selfSignUpEnabled not enabled for the user pool?
+
+**Step:** 05
+
+**Q:** Why is selfSignUpEnabled not enabled in lesson 05 for the user pool?
+
+**A:** Cognito’s `selfSignUpEnabled` flag controls whether a *person* can call SignUp and create a username/password user in the pool. Pool `dwt-vendor-m2m` is not that kind of directory: it holds machine-to-machine app clients for approved software, and the stack leaves `selfSignUpEnabled` false because there are no human Cognito users in this slice. Software-provider “self sign-up” in the lesson is a different door — `POST /software-providers` on `DwtOnboarding`, which calls `CreateUserPoolClient` on the same pool and returns `clientId`, `clientSecret`, and `tokenUrl` once. The waste operator is identified later by an API Gateway API key, not by a Cognito user.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md), `infra/lib/stacks/auth-stack.ts`
+
+---
+
+## 2026-09-25 — Manual step 3: page will not open in the browser
+
+**Step:** 05
+
+**Q:** Step 3 of the manual checks doesn’t work when trying to open the page in the browser.
+
+**A:** Manual step 3 is the software-provider signup host at [http://127.0.0.1:5174](http://127.0.0.1:5174). That URL only works after `npm run onboarding-ui` is running (and you usually also need `npm run bff` for submit). Deploy finished successfully, but nothing was listening on 5174 — connection refused. Start both servers from the repo root, wait for Vite’s `Local:` line, then open the URL. Also put `ONBOARDING_API_BASE` into `apps/dwt-bff/.env.local` from the `DwtOnboarding` output `OnboardingApiBaseUrl` (a shell export alone is not enough); restart the BFF after editing the file.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md), `apps/dwt-onboarding-ui/vite.config.ts`, `apps/dwt-bff/.env.example`
+
+---
+
+## 2026-09-25 — Step 3 of lesson 05: what to do and why
+
+**Step:** 05
+
+**Q:** Step 3 doesn’t read very clearly. Can you explain better what I need to do and why?
+
+**A:** Step 3 opens a local signup page, not an AWS console. Put the `DwtOnboarding` output `OnboardingApiBaseUrl` into `ONBOARDING_API_BASE` in `apps/dwt-bff/.env.local` so the BFF knows which deployed API to call. Run `npm run bff` and `npm run onboarding-ui` from the repo root in two terminals: the UI is a Vite app on port 5174; the BFF on 8787 holds that URL and proxies the form POST so the browser never talks to AWS directly. Wait until Vite prints `Local: http://127.0.0.1:5174/`, then open that address, choose **Register as a software provider**, and copy the one-time credentials from the success panel.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md), `apps/dwt-bff/.env.example`
+
+---
+
+## 2026-09-25 — Point the BFF at the API: how?
+
+**Step:** 05
+
+**Q:** Point the BFF at the API you just deployed. Copy apps/dwt-bff/.env.example to apps/dwt-bff/.env.local if that file does not exist yet. A shell export alone is not enough — the BFF reads .env.local when it starts. With the same AWS profile as the deploy, print the stack output — how?
+
+**A:** Do not overwrite an existing `apps/dwt-bff/.env.local` — only copy from `.env.example` when the file is absent (`test -f apps/dwt-bff/.env.local || cp apps/dwt-bff/.env.example apps/dwt-bff/.env.local`). With `AWS_PROFILE=dwt-dev` and region `eu-west-2`, print `OnboardingApiBaseUrl` from stack `DwtOnboarding` via `aws cloudformation describe-stacks`, then paste that one-line URL after `ONBOARDING_API_BASE=` in `.env.local` in the editor (no trailing slash, no quotes). Restart `npm run bff` after saving.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md), `apps/dwt-bff/.env.example`
+
+---
+
+## 2026-09-25 — Point the BFF at the API: how?
+
+**Step:** 05
+
+**Q:** Point the BFF at the API you just deployed. Copy apps/dwt-bff/.env.example to apps/dwt-bff/.env.local if that file does not exist yet. A shell export alone is not enough — the BFF reads .env.local when it starts. With the same AWS profile as the deploy, print the stack output — how?
+
+**A:** Do not overwrite an existing `apps/dwt-bff/.env.local` — only copy from `.env.example` when the file is absent (`test -f apps/dwt-bff/.env.local || cp apps/dwt-bff/.env.example apps/dwt-bff/.env.local`). With `AWS_PROFILE=dwt-dev` and region `eu-west-2`, print `OnboardingApiBaseUrl` from stack `DwtOnboarding` via `aws cloudformation describe-stacks`, then paste that one-line URL after `ONBOARDING_API_BASE=` in `.env.local` in the editor (no trailing slash, no quotes). Restart `npm run bff` after saving.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md), `apps/dwt-bff/.env.example`
+
+---
+
+## 2026-09-25 — Start both servers from the repo root: how?
+
+**Step:** 05
+
+**Q:** From the repo root, start both servers and leave the terminals open. In the first terminal: How?
+
+**A:** You need two terminal sessions in Cursor (or two shells), both with cwd at the repo root. Open a second one with **Terminal → New Terminal**, the **+** in the terminal panel, or split. First terminal: `npm run bff` (leave it running; ready is the BFF listening on `:8787`). Second: `npm run onboarding-ui` (leave it running; ready is Vite’s `Local: http://127.0.0.1:5174/`). Then open that URL. Do not run both in one foreground shell unless you background the first. If a port is already in use, stop the old process rather than starting a second copy.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md)
+
+---
+
+## 2026-09-25 — Where is the registered vendor stored?
+
+**Step:** 05
+
+**Q:** I did the registration of vendor steps - where is that vendor stored? In IAM? In DynamoDB? locally only?
+
+**A:** The software-provider signup from lesson 05 (`POST /software-providers` via the form at http://127.0.0.1:5174) writes two durable AWS records and keeps one secret only in the browser success panel. Cognito gets a new machine-to-machine app client on pool `dwt-vendor-m2m` (`CreateUserPoolClient`); the `clientId` lives there under App clients. DynamoDB table `SoftwareProviders` (stack output `SoftwareProvidersTableName`, for example `DwtOnboarding-SoftwareProviders…`) stores the profile: partition key `PK` (`SOFTWARE#…`), `softwareProviderId`, `productName`, `contactEmail`, `clientId`, `clientName`, and `createdAt`. The `clientSecret` is returned once in the HTTP response and is not written to DynamoDB or to disk by our code — copy it from the success panel into a password manager. This workshop does not create an IAM user per vendor; Cognito app clients are not IAM users. API Gateway keys belong to waste-operator signup in 05b, not to this path.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md), `src/lib/operations/software-providers.ts`, `infra/lib/stacks/onboarding-stack.ts`
+
+---
+
+## 2026-09-25 — Finding the vendor in Cognito and DynamoDB
+
+**Step:** 05
+
+**Q:** Where can I find this vendor in Cognito and DynamoDB? Can't seem to locate the one I created.
+
+**A:** You will not find it under Cognito **Users**. Software-provider signup creates a machine-to-machine **app client**, not a Cognito user, so the Users list stays empty. Open [Cognito → User pools](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) in **eu-west-2**, click pool **`dwt-vendor-m2m`**, then **App integration** → **App clients**. The CDK sandbox client is **`dwt-vendor-software`**; the form creates a separate client named like **`dwt-provider-sp-…`**. In DynamoDB, the table is not literally named `SoftwareProviders` — use the CloudFormation output `SoftwareProvidersTableName` on stack **DwtOnboarding** (it looks like `DwtOnboarding-SoftwareProviders…`). Open [DynamoDB → Tables](https://eu-west-2.console.aws.amazon.com/dynamodbv2/home?region=eu-west-2#tables), select that table, then **Explore items**. The row’s partition key is `PK` (`SOFTWARE#…`); useful fields are `productName`, `clientId`, and `clientName`. If neither the form’s app client nor a matching DynamoDB row appears, the signup may not have reached AWS — confirm the BFF and onboarding UI were running and that the form showed a success panel with a `clientId`.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md), `src/lib/operations/software-providers.ts`
+
+---
+
+## 2026-09-25 — Finding the vendor in Cognito and DynamoDB
+
+**Step:** 05
+
+**Q:** Where can I find this vendor in Cognito and DynamoDB? Can't seem to locate the one I created.
+
+**A:** You will not find it under Cognito **Users**. Software-provider signup creates a machine-to-machine **app client**, not a Cognito user, so the Users list stays empty. Open [Cognito → User pools](https://eu-west-2.console.aws.amazon.com/cognito/v2/idp/user-pools?region=eu-west-2) in **eu-west-2**, click pool **`dwt-vendor-m2m`**, then **App integration** → **App clients**. The CDK sandbox client is **`dwt-vendor-software`**; the form creates a separate client named like **`dwt-provider-sp-…`**. In DynamoDB, the table is not literally named `SoftwareProviders` — use the CloudFormation output `SoftwareProvidersTableName` on stack **DwtOnboarding** (it looks like `DwtOnboarding-SoftwareProviders…`). Open [DynamoDB → Tables](https://eu-west-2.console.aws.amazon.com/dynamodbv2/home?region=eu-west-2#tables), select that table, then **Explore items**. The row’s partition key is `PK` (`SOFTWARE#…`); useful fields are `productName`, `clientId`, and `clientName`. If neither the form’s app client nor a matching DynamoDB row appears, the signup may not have reached AWS — confirm the BFF and onboarding UI were running and that the form showed a success panel with a `clientId`.
+
+**Code:** [`learn/steps/05-auth-stack/README.md`](../steps/05-auth-stack/README.md), `src/lib/operations/software-providers.ts`

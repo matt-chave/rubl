@@ -28,10 +28,13 @@ assert(ignore.includes('.env'), '.gitignore must list .env')
 
 section('Tracked files are not secrets or node_modules')
 const tracked = git('ls-files').split('\n').filter(Boolean)
-assert(
-  !tracked.some((file) => file === '.env' || file.startsWith('.env.')),
-  '.env is tracked — remove it from git before anyone clones',
-)
+// Templates like .env.example are safe to track; real .env / .env.local are not.
+const trackedSecretEnv = tracked.find((file) => {
+  const base = file.split('/').pop() ?? file
+  if (base === '.env') return true
+  return base.startsWith('.env.') && !base.endsWith('.example')
+})
+assert(!trackedSecretEnv, `${trackedSecretEnv} is tracked — remove it from git before anyone clones`)
 assert(
   !tracked.some((file) => file === 'node_modules' || file.startsWith('node_modules/')),
   'node_modules is tracked — it must stay local',
